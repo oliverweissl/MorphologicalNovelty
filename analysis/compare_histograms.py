@@ -131,3 +131,4 @@ class CompareHistorgrams:
             for vo, ve in zip(o, e):
                 print("hello")
         #TODO: implement
+        return score
