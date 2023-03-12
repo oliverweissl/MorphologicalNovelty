@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import numpy as np
+
 from multineat import Genome
 from typing import List, Tuple
 from math import atan2, pi, sqrt
+from compare_histograms import CompareHistorgrams as ch
 from revolve2.genotypes.cppnwin._genotype import Genotype
 from revolve2.core.modular_robot import Body, ActiveHinge, Brick
 from revolve2.genotypes.cppnwin.modular_robot.body_genotype_v1 import develop_v1
@@ -20,11 +22,12 @@ class PhenotypeFramework:
         return len(bricks), len(hinges)
 
     @classmethod
-    def get_novelty_population(cls, genotypes: List[Genotype | str], normalization:str) -> List[float]:
+    def get_novelty_population(cls, genotypes: List[Genotype | str], normalization: str | None, test: str) -> List[float]:
         """
         calculates novelty across population.
         :param genotypes: List[Genotype | str] --> list of genotypes for population.
         :param normalization: None -> no normalization | "clipping" -> between 0,1 | "log" -> log of x
+        :param test: which test to compare histograms (chi-squared, yates-chi-squared)
         :return: List[float] novelty rate per individual
         """
         amt_instances = len(genotypes)
@@ -33,19 +36,46 @@ class PhenotypeFramework:
         bodies = [develop_v1(genotype) for genotype in genotypes]
         coords = [cls._body_to_sorted_coordinates(body) for body in bodies]
 
-        hists = [None]*amt_instances
+        brick_hists = [None]*amt_instances
+        hinge_hists = [None]*amt_instances
+
         i = 0
         for coord in coords:
-            hists[i] = cls._gen_gradient_histogram(magnitudes= cls._coordinates_to_magnitudes(coord),
-                                                   orientations=cls._coordinates_to_orientation(coord),
+            brick_hists[i] = cls._gen_gradient_histogram(magnitudes=cls._coordinates_to_magnitudes(coord[0]),
+                                                   orientations=cls._coordinates_to_orientation(coord[0]),
                                                    normalization= normalization)
+
+            hinge_hists[i] = cls._gen_gradient_histogram(magnitudes=cls._coordinates_to_magnitudes(coord[1]),
+                                                         orientations=cls._coordinates_to_orientation(coord[1]),
+                                                         normalization=normalization)
             i += 1
 
+        brick_novelty_scores = [0]*amt_instances
+        hinge_novelty_scores = [0]*amt_instances
+        for i in range(amt_instances-1):
+            for j in range(i+1, amt_instances):
+                brick_score = cls._compare_hist(brick_hists[i], brick_hists[j], test)
+                brick_novelty_scores[i] += brick_score
+                brick_novelty_scores[j] += brick_score
 
+                hinge_score = cls._compare_hist(hinge_hists[i], hinge_hists[j], test)
+                hinge_novelty_scores[i] += hinge_score
+                hinge_novelty_scores[j] += hinge_score
 
+        novelty_scores = [(b_score + h_score) / amt_instances*2  for b_score, h_score in zip(brick_novelty_scores, hinge_novelty_scores)]
+        return novelty_scores
 
-
-
+    @classmethod
+    def _compare_hist(cls, O: List[List[float]], E: List[List[float]], test:str) -> float:
+        score = {'yates-chi-squared': ch.yates_chi_squared,
+                 'chi-squared': ch.chi_squared,
+                 'hellinger-dist': ch.hellinger_distance,
+                 'manhattan-dist': ch.manhattan_distance,
+                 'euclidian-dist': ch.euclidian_distance,
+                 'chybyshev_distance': ch.chybyshev_distance,
+                 'pcc': ch.pearsons_correlation_coefficient
+                 }[test](O, E)
+        return score
 
     @classmethod
     def deserialize(cls, serialized_genotype: str):
@@ -54,7 +84,7 @@ class PhenotypeFramework:
         return genotype
 
     @classmethod
-    def _body_to_sorted_coordinates(cls, body: Body) -> (List[Tuple],List[Tuple]):
+    def _body_to_sorted_coordinates(cls, body: Body) -> (List[Tuple], List[Tuple]):
         """
         Generates coordinates from Body object. All resulting coordinates are normalized to (0,0,0)
         --> core is forced to the origin.
@@ -151,9 +181,11 @@ class PhenotypeFramework:
         if normalization == "clipping":
             max_val, min_val = nphist.max(), nphist.min()
             norm = lambda x: (x - min_val) / (max_val - min_val)
-            hist = norm(nphist)
+            nphist = norm(nphist)
+            nphist[np.isnan(nphist)] = 0  # sets 0 for all NaN --> can happen when no brick/ hinge present
 
         if normalization == "log":
-            hist = np.where(nphist != 0, np.log(nphist), 0)
+            nphist = np.where(nphist != 0, np.log(nphist), 0)
 
+        hist =  nphist
         return hist
