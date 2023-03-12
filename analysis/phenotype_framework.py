@@ -67,6 +67,7 @@ class PhenotypeFramework:
 
     @classmethod
     def _compare_hist(cls, O: List[List[float]], E: List[List[float]], test:str) -> float:
+        # selects test functions
         score = {'yates-chi-squared': ch.yates_chi_squared,
                  'chi-squared': ch.chi_squared,
                  'hellinger-dist': ch.hellinger_distance,
