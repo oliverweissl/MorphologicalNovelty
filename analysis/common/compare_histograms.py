@@ -80,7 +80,7 @@ class CompareHistorgrams:
         return score
 
     @classmethod
-    def minkowsky_distance(cls, O: List[List[float]], E: List[List[float]], p:int) -> float:
+    def minkowsky_distance(cls, O: List[List[float]], E: List[List[float]], p: int) -> float:
         assert 0 < p, f"Error: p has to be bigger than 0 for this implementation"
         itr = len(O)
         assert itr == len(E), f"Error: Histograms have different sizes -> O:{itr}, E:{len(E)}"

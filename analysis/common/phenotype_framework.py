@@ -62,7 +62,8 @@ class PhenotypeFramework:
                 hinge_novelty_scores[i] += hinge_score
                 hinge_novelty_scores[j] += hinge_score
 
-        novelty_scores = [(b_score + h_score) / amt_instances*2  for b_score, h_score in zip(brick_novelty_scores, hinge_novelty_scores)]
+        novelty_scores = [(b_score + h_score) / (amt_instances * 2)
+                          for b_score, h_score in zip(brick_novelty_scores, hinge_novelty_scores)]
         return novelty_scores
 
     @classmethod
