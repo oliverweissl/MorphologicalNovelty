@@ -5,7 +5,7 @@ import numpy as np
 from multineat import Genome
 from typing import List, Tuple
 from math import atan2, pi, sqrt
-from compare_histograms import CompareHistorgrams as ch
+from .compare_histograms import CompareHistorgrams as ch
 from revolve2.genotypes.cppnwin._genotype import Genotype
 from revolve2.core.modular_robot import Body, ActiveHinge, Brick
 from revolve2.genotypes.cppnwin.modular_robot.body_genotype_v1 import develop_v1
@@ -15,14 +15,16 @@ class PhenotypeFramework:
 
     @classmethod
     def get_blocks_hinges_amount(cls, genotype: Genotype | str) -> (int, int):
-        assert isinstance(genotype, (Genotype, str)), f"Error: Genotype is of type {type(genotype)}, Genotype or str expected!"
+        assert isinstance(genotype,
+                          (Genotype, str)), f"Error: Genotype is of type {type(genotype)}, Genotype or str expected!"
         genotype = genotype if not isinstance(genotype, str) else cls.deserialize(genotype)
         body = develop_v1(genotype)
         bricks, hinges = cls._body_to_sorted_coordinates(body)
         return len(bricks), len(hinges)
 
     @classmethod
-    def get_novelty_population(cls, genotypes: List[Genotype | str], normalization: str | None, test: str) -> List[float]:
+    def get_novelty_population(cls, genotypes: List[Genotype | str], normalization: str = None,
+                               test: str = "chybyshev_distance") -> List[float]:
         """
         calculates novelty across population.
         :param genotypes: List[Genotype | str] --> list of genotypes for population.
@@ -36,24 +38,24 @@ class PhenotypeFramework:
         bodies = [develop_v1(genotype) for genotype in genotypes]
         coords = [cls._body_to_sorted_coordinates(body) for body in bodies]
 
-        brick_hists = [None]*amt_instances
-        hinge_hists = [None]*amt_instances
+        brick_hists = [None] * amt_instances
+        hinge_hists = [None] * amt_instances
 
         i = 0
         for coord in coords:
             brick_hists[i] = cls._gen_gradient_histogram(magnitudes=cls._coordinates_to_magnitudes(coord[0]),
-                                                   orientations=cls._coordinates_to_orientation(coord[0]),
-                                                   normalization= normalization)
+                                                         orientations=cls._coordinates_to_orientation(coord[0]),
+                                                         normalization=normalization)
 
             hinge_hists[i] = cls._gen_gradient_histogram(magnitudes=cls._coordinates_to_magnitudes(coord[1]),
                                                          orientations=cls._coordinates_to_orientation(coord[1]),
                                                          normalization=normalization)
             i += 1
 
-        brick_novelty_scores = [0]*amt_instances
-        hinge_novelty_scores = [0]*amt_instances
-        for i in range(amt_instances-1):
-            for j in range(i+1, amt_instances):
+        brick_novelty_scores = [0] * amt_instances
+        hinge_novelty_scores = [0] * amt_instances
+        for i in range(amt_instances - 1):
+            for j in range(i + 1, amt_instances):
                 brick_score = cls._compare_hist(brick_hists[i], brick_hists[j], test)
                 brick_novelty_scores[i] += brick_score
                 brick_novelty_scores[j] += brick_score
@@ -62,12 +64,21 @@ class PhenotypeFramework:
                 hinge_novelty_scores[i] += hinge_score
                 hinge_novelty_scores[j] += hinge_score
 
-        novelty_scores = [(b_score + h_score) / (amt_instances * 2)
+        novelty_scores = [(b_score + h_score) / 2
                           for b_score, h_score in zip(brick_novelty_scores, hinge_novelty_scores)]
+
+        novelty_scores = cls._normalize_list(novelty_scores, "scaling")
+        # scaling because the min novelty is 0 in theory --> some populations can have no duplicates therefore no 0s
         return novelty_scores
 
     @classmethod
-    def _compare_hist(cls, O: List[List[float]], E: List[List[float]], test:str) -> float:
+    def deserialize(cls, serialized_genotype: str):
+        genotype = Genotype(Genome())
+        genotype.genotype.Deserialize(serialized_genotype)
+        return genotype
+
+    @classmethod
+    def _compare_hist(cls, O: List[List[float]], E: List[List[float]], test: str) -> float:
         # selects test functions
         score = {'yates-chi-squared': ch.yates_chi_squared,
                  'chi-squared': ch.chi_squared,
@@ -78,12 +89,6 @@ class PhenotypeFramework:
                  'pcc': ch.pearsons_correlation_coefficient
                  }[test](O, E)
         return score
-
-    @classmethod
-    def deserialize(cls, serialized_genotype: str):
-        genotype = Genotype(Genome())
-        genotype.genotype.Deserialize(serialized_genotype)
-        return genotype
 
     @classmethod
     def _body_to_sorted_coordinates(cls, body: Body) -> (List[Tuple], List[Tuple]):
@@ -101,9 +106,9 @@ class PhenotypeFramework:
 
         flat_body_arr = body_arr.flatten()
         flat_body_coords = np.asarray([[[
-            tuple(np.subtract((x,y,z),core_pos)) for x in range(x_size)]
+            tuple(np.subtract((x, y, z), core_pos)) for x in range(x_size)]
             for y in range(y_size)]
-            for z in range(z_size)],dtype="i,i,i").flatten()
+            for z in range(z_size)], dtype="i,i,i").flatten()
 
         bricks, hinges = [], []
         for elem, coord in zip(flat_body_arr, flat_body_coords):
@@ -154,7 +159,7 @@ class PhenotypeFramework:
     @classmethod
     def _gen_gradient_histogram(cls, magnitudes: List[float],
                                 orientations: List[Tuple[float, float]],
-                                normalization: str,
+                                normalization: str | None,
                                 num_bins: int = 18) -> List[List[float]]:
         """
         Generates a 2D-Historgram of oriented gradients, using bins to standardize feature size. Can be normalized in various ways to make it comparable.
@@ -176,18 +181,22 @@ class PhenotypeFramework:
             x, z = _get_bin_idx(rot, bin_size)
             hist[x][z] += mag
 
-        if not normalization:
-            return hist
-
-        nphist = np.asarray(hist)
-        if normalization == "clipping":
-            max_val, min_val = nphist.max(), nphist.min()
-            norm = lambda x: (x - min_val) / (max_val - min_val)
-            nphist = norm(nphist)
-            nphist[np.isnan(nphist)] = 0  # sets 0 for all NaN --> can happen when no brick/ hinge present
-
-        if normalization == "log":
-            nphist = np.where(nphist != 0, np.log(nphist), 0)
-
-        hist =  nphist
+        hist = cls._normalize_list(hist, normalization)
         return hist
+
+    @staticmethod
+    def _normalize_list(lst: list | np.array, normalization: str | None) -> list | np.array:
+        new_lst = np.asarray(lst)
+        max_val, min_val = new_lst.max(), new_lst.min()
+
+        if not normalization:
+            norm = lambda x: x
+        elif "clipping" in normalization:
+            norm = lambda x: (x - min_val) / (max_val - min_val) if max_val != min_val else x
+        elif "log" in normalization:
+            norm = lambda x: np.ma.log(x).filled(0)
+        elif "scaling" in normalization:
+            norm = lambda x: x / max_val if max_val != min_val else x
+
+        normalized_array = norm(lst)
+        return normalized_array

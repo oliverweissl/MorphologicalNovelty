@@ -4,7 +4,7 @@ import pandas as pd
 
 from numpy import std
 from phenotype_framework import PhenotypeFramework as pf
-from analysis.repositories.genotype_db import GenotypeDB
+from repositories.genotype_db import GenotypeDB
 from phenotype_framework import PhenotypeFramework
 from revolve2.core.database import open_database_sqlite
 from revolve2.core.optimization import DbId
