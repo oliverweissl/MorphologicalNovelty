@@ -1,3 +1,4 @@
+from abc import abstractmethod
 from typing import List
 from itertools import chain
 
@@ -121,7 +122,7 @@ class CompareHistorgrams:
         score = upper/(lower_o*lower_e)
         return score
 
-    @classmethod
+    @abstractmethod
     def example(cls, O: List[List[float]], E: List[List[float]]) -> float:
         itr = len(O)
         assert itr == len(E), f"Error: Histograms have different sizes -> O:{itr}, E:{len(E)}"
