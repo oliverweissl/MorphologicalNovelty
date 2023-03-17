@@ -15,16 +15,15 @@ class PhenotypeFramework:
 
     @classmethod
     def get_blocks_hinges_amount(cls, genotype: Genotype | str) -> (int, int):
-        assert isinstance(genotype,
-                          (Genotype, str)), f"Error: Genotype is of type {type(genotype)}, Genotype or str expected!"
+        assert isinstance(genotype, (Genotype, str)), f"Error: Genotype is of type {type(genotype)}, Genotype or str expected!"
+
         genotype = genotype if not isinstance(genotype, str) else cls.deserialize(genotype)
         body = develop_v1(genotype)
         bricks, hinges = cls._body_to_sorted_coordinates(body)
         return len(bricks), len(hinges)
 
     @classmethod
-    def get_novelty_population(cls, genotypes: List[Genotype | str], normalization: str = None,
-                               test: str = "chybyshev_distance") -> List[float]:
+    def get_novelty_population(cls, genotypes: List[Genotype | str], normalization: str = None, test: str = "chybyshev-dist") -> List[float]:
         """
         calculates novelty across population.
         :param genotypes: List[Genotype | str] --> list of genotypes for population.
@@ -85,7 +84,7 @@ class PhenotypeFramework:
                  'hellinger-dist': ch.hellinger_distance,
                  'manhattan-dist': ch.manhattan_distance,
                  'euclidian-dist': ch.euclidian_distance,
-                 'chybyshev_distance': ch.chybyshev_distance,
+                 'chybyshev-dist': ch.chybyshev_distance,
                  'pcc': ch.pearsons_correlation_coefficient
                  }[test](O, E)
         return score
@@ -157,10 +156,7 @@ class PhenotypeFramework:
         return rot_vec
 
     @classmethod
-    def _gen_gradient_histogram(cls, magnitudes: List[float],
-                                orientations: List[Tuple[float, float]],
-                                normalization: str | None,
-                                num_bins: int = 18) -> List[List[float]]:
+    def _gen_gradient_histogram(cls, magnitudes: List[float], orientations: List[Tuple[float, float]], normalization: str | None, num_bins: int = 18) -> List[List[float]]:
         """
         Generates a 2D-Historgram of oriented gradients, using bins to standardize feature size. Can be normalized in various ways to make it comparable.
         :param magnitudes: Magnitudes List[float]
