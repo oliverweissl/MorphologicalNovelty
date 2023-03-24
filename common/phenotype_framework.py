@@ -23,7 +23,7 @@ class PhenotypeFramework:
         return len(bricks), len(hinges)
 
     @classmethod
-    def get_novelty_population(cls, genotypes: List[Genotype | str], normalization: str = None, test: str = "chybyshev-dist") -> List[float]:
+    def get_novelty_population(cls, genotypes: List[Genotype | str], novelty_test: Tuple[str|None, float|None],  normalization: str = None) -> List[float]:
         """
         calculates novelty across population.
         :param genotypes: List[Genotype | str] --> list of genotypes for population.
@@ -55,11 +55,11 @@ class PhenotypeFramework:
         hinge_novelty_scores = [0] * amt_instances
         for i in range(amt_instances - 1):
             for j in range(i + 1, amt_instances):
-                brick_score = cls._compare_hist(brick_hists[i], brick_hists[j], test)
+                brick_score = cls._compare_hist(brick_hists[i], brick_hists[j], novelty_test)
                 brick_novelty_scores[i] += brick_score
                 brick_novelty_scores[j] += brick_score
 
-                hinge_score = cls._compare_hist(hinge_hists[i], hinge_hists[j], test)
+                hinge_score = cls._compare_hist(hinge_hists[i], hinge_hists[j], novelty_test)
                 hinge_novelty_scores[i] += hinge_score
                 hinge_novelty_scores[j] += hinge_score
 
@@ -68,7 +68,7 @@ class PhenotypeFramework:
 
         novelty_scores = cls._normalize_list(novelty_scores, "scaling")
         # scaling because the min novelty is 0 in theory --> some populations can have no duplicates therefore no 0s
-        return novelty_scores
+        return novelty_scores.tolist()
 
     @classmethod
     def deserialize(cls, serialized_genotype: str):
@@ -77,16 +77,21 @@ class PhenotypeFramework:
         return genotype
 
     @classmethod
-    def _compare_hist(cls, O: List[List[float]], E: List[List[float]], test: str) -> float:
+    def _compare_hist(cls, O: List[List[float]], E: List[List[float]], novelty_test: Tuple[str, float|None]) -> float:
+        test, p = novelty_test
+        assert (test is not None) or (p is not None), "ERROR: no test or p value given"
         # selects test functions
-        score = {'yates-chi-squared': ch.yates_chi_squared,
-                 'chi-squared': ch.chi_squared,
-                 'hellinger-dist': ch.hellinger_distance,
-                 'manhattan-dist': ch.manhattan_distance,
-                 'euclidian-dist': ch.euclidian_distance,
-                 'chybyshev-dist': ch.chybyshev_distance,
-                 'pcc': ch.pearsons_correlation_coefficient
-                 }[test](O, E)
+        if p is not None:
+            score = ch.minkowsky_distance(O, E, p)
+        else:
+            score = {'yates-chi-squared': ch.yates_chi_squared,
+                     'chi-squared': ch.chi_squared,
+                     'hellinger-dist': ch.hellinger_distance,
+                     'manhattan-dist': ch.manhattan_distance,
+                     'euclidian-dist': ch.euclidian_distance,
+                     'chybyshev-dist': ch.chybyshev_distance,
+                     'pcc': ch.pearsons_correlation_coefficient
+                     }[test](O, E)
         return score
 
     @classmethod
