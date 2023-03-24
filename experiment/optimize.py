@@ -2,15 +2,16 @@
 
 import logging
 from random import Random
+from typing import Tuple
 
 import multineat
-from genotype import random as random_genotype
-from optimizer import Optimizer
+from .genotype import random as random_genotype
+from .optimizer import Optimizer
 from revolve2.core.database import open_async_database_sqlite
 from revolve2.core.optimization import DbId
 
 
-async def main() -> None:
+async def main(novelty_test:Tuple[str, float|None] = ("chybyshev-dist",None)) -> None:
     """Run the optimization process."""
     # number of initial mutations for body and brain CPPNWIN networks
     NUM_INITIAL_MUTATIONS = 10
@@ -20,10 +21,10 @@ async def main() -> None:
     CONTROL_FREQUENCY = 60
 
     POPULATION_SIZE = 20
-    OFFSPRING_SIZE = 20
+    OFFSPRING_SIZE = 30 # tournament on only new individuals
     NUM_GENERATIONS = 10
 
-    NOVELTY_SEARCH = False
+    NOVELTY_SEARCH = True
 
     logging.basicConfig(
         level=logging.INFO,
@@ -37,11 +38,11 @@ async def main() -> None:
     rng.seed(6)
 
     # database
-    database = open_async_database_sqlite("./database", create=True)
+    db_str = f"./experiments/database{novelty_test[0]}{'p: '+ novelty_test[1]}" if novelty_test[1] is not None else f"./experiments/database{novelty_test[0]}"
+    database = open_async_database_sqlite(db_str, create=True)
 
     # unique database identifier for optimizer
     db_id = DbId.root("optmodular")
-    print(db_id)
 
     # multineat innovation databases
     innov_db_body = multineat.InnovationDatabase()
@@ -73,12 +74,12 @@ async def main() -> None:
             sampling_frequency=SAMPLING_FREQUENCY,
             control_frequency=CONTROL_FREQUENCY,
             num_generations=NUM_GENERATIONS,
-            offspring_size=OFFSPRING_SIZE
+            offspring_size=OFFSPRING_SIZE,
         )
 
     logging.info("Starting optimization process..")
 
-    await optimizer.run() #novelty_search = NOVELTY_SEARCH
+    await optimizer.run(novelty_search=NOVELTY_SEARCH, novelty_test=novelty_test)
 
     logging.info("Finished optimizing.")
 

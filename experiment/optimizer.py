@@ -7,17 +7,15 @@ from typing import List, Tuple
 
 import multineat
 import revolve2.core.optimization.ea.generic_ea.population_management as population_management
+
 import revolve2.core.optimization.ea.generic_ea.selection as selection
 import sqlalchemy
-from genotype import Genotype, GenotypeSerializer, crossover, develop, mutate
+from .genotype import Genotype, GenotypeSerializer, crossover, develop, mutate
 from pyrr import Quaternion, Vector3
 from revolve2.core.database import IncompatibleError
 from revolve2.core.database.serializers import FloatSerializer
 from revolve2.core.optimization import DbId
-from revolve2.core.optimization.ea.generic_ea import EAOptimizer
-from revolve2.core.physics.environment_actor_controller import (
-    EnvironmentActorController,
-)
+from revolve2.core.physics.environment_actor_controller import EnvironmentActorController
 from revolve2.core.physics.running import (
     ActorState,
     Batch,
@@ -32,8 +30,12 @@ from sqlalchemy.ext.asyncio.session import AsyncSession
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.future import select
 
+from .revolve2_changed._multiple_unique import multiple_unique
+from .revolve2_changed._optimizer import EAOptimizer
+from common.phenotype_framework import PhenotypeFramework as PF
 
-class Optimizer(EAOptimizer[Genotype, float]):
+
+class Optimizer(EAOptimizer[Genotype, float, float]):
     """
     Optimizer for the problem.
 
@@ -70,7 +72,7 @@ class Optimizer(EAOptimizer[Genotype, float]):
         sampling_frequency: float,
         control_frequency: float,
         num_generations: int,
-        offspring_size: int
+        offspring_size: int,
     ) -> None:
         """
         Initialize this class async.
@@ -89,6 +91,7 @@ class Optimizer(EAOptimizer[Genotype, float]):
         :param control_frequency: Control frequency for the simulation. See `Batch` class from physics running.
         :param num_generations: Number of generation to run the optimizer for.
         :param offspring_size: Number of offspring made by the population each generation.
+        :param pop_size: Number of individuals to survive after each tournament
         """
         await super().ainit_new(
             database=database,
@@ -97,6 +100,7 @@ class Optimizer(EAOptimizer[Genotype, float]):
             genotype_type=Genotype,
             genotype_serializer=GenotypeSerializer,
             fitness_type=float,
+            novelty_type=float,
             fitness_serializer=FloatSerializer,
             offspring_size=offspring_size,
             initial_population=initial_population,
@@ -206,6 +210,24 @@ class Optimizer(EAOptimizer[Genotype, float]):
             for _ in range(num_parent_groups)
         ]
 
+    def _select_parents_novelty(
+        self,
+        population: List[Genotype],
+        fitnesses: List[float],
+        novelty: List[float],
+        num_parent_groups: int,
+    ) -> List[List[int]]:
+        return [
+            multiple_unique(
+                2,
+                population,
+                fitnesses,
+                novelty,
+                lambda _, fitnesses, novelty: selection.novelty_tournament(self._rng, fitnesses, novelty, k=2),
+            )
+            for _ in range(num_parent_groups)
+        ]
+
     def _select_survivors(
         self,
         old_individuals: List[Genotype],
@@ -216,9 +238,7 @@ class Optimizer(EAOptimizer[Genotype, float]):
     ) -> Tuple[List[int], List[int]]:
         assert len(old_individuals) == num_survivors
 
-
-
-        return population_management.steady_state(
+        return population_management.generational(
             old_individuals,
             old_fitnesses,
             new_individuals,
@@ -244,12 +264,8 @@ class Optimizer(EAOptimizer[Genotype, float]):
     def _mutate(self, genotype: Genotype) -> Genotype:
         return mutate(genotype, self._innov_db_body, self._innov_db_brain, self._rng)
 
-    async def _evaluate_generation(
-        self,
-        genotypes: List[Genotype],
-        database: AsyncEngine,
-        db_id: DbId,
-    ) -> (List[float], List[float]):
+    async def _evaluate_generation(self, genotypes: List[Genotype], database: AsyncEngine, db_id: DbId,) -> List[float]:
+
         batch = Batch(
             simulation_time=self._simulation_time,
             sampling_frequency=self._sampling_frequency,
@@ -278,14 +294,22 @@ class Optimizer(EAOptimizer[Genotype, float]):
             batch.environments.append(env)
 
         batch_results = await self._runner.run_batch(batch)
-
-        return [
+        fitnesses = [
             self._calculate_fitness(
                 environment_result.environment_states[0].actor_states[0],
                 environment_result.environment_states[-1].actor_states[0],
             )
             for environment_result in batch_results.environment_results
         ]
+        return fitnesses
+
+    async def _evaluate_generation_novelty(self,
+                                           genotypes: List[Genotype],
+                                           novelty_test: Tuple[str|None, float|None],
+                                           database: AsyncEngine,
+                                           db_id: DbId,) -> List[float]:
+        novelty = PF.get_novelty_population([genotype.body for genotype in genotypes], novelty_test=novelty_test, normalization="clipping")
+        return novelty
 
     @staticmethod
     def _calculate_fitness(begin_state: ActorState, end_state: ActorState) -> float:
@@ -298,6 +322,10 @@ class Optimizer(EAOptimizer[Genotype, float]):
                 + ((begin_state.position[1] - end_state.position[1]) ** 2)
             )
         )
+
+    @staticmethod
+    def _calculate_novelty(genotypes: List[Genotype]) -> List[float]:
+        return PF.get_novelty_population(genotypes, normalization="clipping")
 
     def _on_generation_checkpoint(self, session: AsyncSession) -> None:
         session.add(
