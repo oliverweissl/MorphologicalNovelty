@@ -38,7 +38,7 @@ async def main(novelty_test:Tuple[str, float|None] = ("chybyshev-dist",None)) ->
     rng.seed(6)
 
     # database
-    db_str = f"./experiments/database{novelty_test[0]}{'p: '+ novelty_test[1]}" if novelty_test[1] is not None else f"./experiments/database{novelty_test[0]}"
+    db_str = f"./experiments/database_{novelty_test[0]}{'p: '+ str(novelty_test[1])}" if novelty_test[1] is not None else f"./experiments/database_{novelty_test[0]}"
     database = open_async_database_sqlite(db_str, create=True)
 
     # unique database identifier for optimizer
