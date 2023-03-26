@@ -6,23 +6,6 @@ from sqlalchemy.ext.declarative import declarative_base
 DbBase = declarative_base()
 
 
-class Optimizer(DbBase):
-    """Model for the optimizer itself, containing static parameters."""
-
-    __tablename__ = "ea_optimizer"
-
-    id = Column(
-        Integer,
-        nullable=False,
-        unique=True,
-        autoincrement=True,
-        primary_key=True,
-    )
-    db_id = Column(String, nullable=False, unique=True)
-    offspring_size = Column(Integer, nullable=False)
-    genotype_table = Column(String, nullable=False)
-    fitness_table = Column(String, nullable=False)
-    novelty_table = Column(String, nullable=False)
 
 class DbEAOptimizer(DbBase):
     """Model for the optimizer itself, containing static parameters."""
