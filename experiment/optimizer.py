@@ -10,7 +10,9 @@ import revolve2.core.optimization.ea.generic_ea.population_management as populat
 
 import revolve2.core.optimization.ea.generic_ea.selection as selection
 import sqlalchemy
+
 from .genotype import Genotype, GenotypeSerializer, crossover, develop, mutate
+
 from pyrr import Quaternion, Vector3
 from revolve2.core.database import IncompatibleError
 from revolve2.core.database.serializers import FloatSerializer
@@ -30,8 +32,8 @@ from sqlalchemy.ext.asyncio.session import AsyncSession
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.future import select
 
-from .revolve2_changed._multiple_unique import multiple_unique
-from .revolve2_changed._optimizer import EAOptimizer
+from .revolve2_changed import multiple_unique
+from .revolve2_changed import EAOptimizer
 from common.phenotype_framework import PhenotypeFramework as PF
 
 
@@ -100,8 +102,9 @@ class Optimizer(EAOptimizer[Genotype, float, float]):
             genotype_type=Genotype,
             genotype_serializer=GenotypeSerializer,
             fitness_type=float,
-            novelty_type=float,
             fitness_serializer=FloatSerializer,
+            novelty_type=float,
+            novelty_serializer=FloatSerializer,
             offspring_size=offspring_size,
             initial_population=initial_population,
         )
@@ -154,6 +157,8 @@ class Optimizer(EAOptimizer[Genotype, float, float]):
             genotype_serializer=GenotypeSerializer,
             fitness_type=float,
             fitness_serializer=FloatSerializer,
+            novelty_type=float,
+            novelty_serializer=FloatSerializer
         ):
             return False
 
