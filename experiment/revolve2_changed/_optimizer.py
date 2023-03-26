@@ -11,7 +11,8 @@ from sqlalchemy.exc import OperationalError, MultipleResultsFound, NoResultFound
 from sqlalchemy.ext.asyncio import AsyncEngine
 from sqlalchemy.ext.asyncio.session import AsyncSession
 from sqlalchemy.future import select
-from revolve2.core.optimization.ea.generic_ea._database import (
+
+from repositories.ea_database import(
     DbBase,
     DbEAOptimizer,
     DbEAOptimizerGeneration,
@@ -19,6 +20,7 @@ from revolve2.core.optimization.ea.generic_ea._database import (
     DbEAOptimizerParent,
     DbEAOptimizerState,
 )
+
 
 Genotype = TypeVar("Genotype")
 Fitness = TypeVar("Fitness")
@@ -37,7 +39,10 @@ class EAOptimizer(Process, Generic[Genotype, Fitness, Novelty]):
     """
 
     @abstractmethod
-    async def _evaluate_generation(self,genotypes: List[Genotype], database: AsyncEngine, db_id: DbId,) -> List[Fitness]:
+    async def _evaluate_generation(self,
+                                   genotypes: List[Genotype],
+                                   database: AsyncEngine,
+                                   db_id: DbId,) -> List[Fitness]:
         """
         Evaluate a list of genotypes.
 
@@ -48,7 +53,11 @@ class EAOptimizer(Process, Generic[Genotype, Fitness, Novelty]):
         """
 
     @abstractmethod
-    async def _evaluate_generation_novelty(self, genotypes: List[Genotype], novelty_test: Tuple[str, float|None], database: AsyncEngine, db_id: DbId,) -> List[Novelty]:
+    async def _evaluate_generation_novelty(self,
+                                           genotypes: List[Genotype],
+                                           novelty_test: Tuple[str, float|None],
+                                           database: AsyncEngine,
+                                           db_id: DbId,) -> List[Novelty]:
         """
         Evaluate novelty of a list of genotypes.
 
@@ -159,6 +168,7 @@ class EAOptimizer(Process, Generic[Genotype, Fitness, Novelty]):
     __fitness_type: Type[Fitness]
     __fitness_serializer: Type[Serializer[Fitness]]
     __novelty_type: Type[Novelty]
+    __novelty_serializer = Type[Serializer[Novelty]]
 
     __offspring_size: int
 
@@ -178,8 +188,9 @@ class EAOptimizer(Process, Generic[Genotype, Fitness, Novelty]):
         genotype_type: Type[Genotype],
         genotype_serializer: Type[Serializer[Genotype]],
         fitness_type: Type[Fitness],
-        novelty_type: Type[Novelty],
         fitness_serializer: Type[Serializer[Fitness]],
+        novelty_type: Type[Novelty],
+        novelty_serializer: Type[Serializer[Novelty]],
         offspring_size: int,
         initial_population: List[Genotype],
     ) -> None:
@@ -189,6 +200,7 @@ class EAOptimizer(Process, Generic[Genotype, Fitness, Novelty]):
         Called when creating an instance using `new`.
 
 
+        :param novelty_serializer: Serializer for novelty
         :param novelty_type: Type of novelty generic parameter.
         :param database: Database to use for this optimizer.
         :param session: Session to use when saving data to the database during initialization.
@@ -207,6 +219,7 @@ class EAOptimizer(Process, Generic[Genotype, Fitness, Novelty]):
         self.__fitness_type = fitness_type
         self.__fitness_serializer = fitness_serializer
         self.__novelty_type = novelty_type
+        self.__novelty_serializer = novelty_serializer
         self.__offspring_size = offspring_size
         self.__next_individual_id = 0
         self.__latest_fitnesses = None
@@ -217,15 +230,18 @@ class EAOptimizer(Process, Generic[Genotype, Fitness, Novelty]):
             for g in initial_population
         ]
 
+
         await (await session.connection()).run_sync(DbBase.metadata.create_all)
         await self.__genotype_serializer.create_tables(session)
         await self.__fitness_serializer.create_tables(session)
+        await self.__novelty_serializer.create_tables(session)
 
         new_opt = DbEAOptimizer(
             db_id=db_id.fullname,
             offspring_size=self.__offspring_size,
             genotype_table=self.__genotype_serializer.identifying_table(),
             fitness_table=self.__fitness_serializer.identifying_table(),
+            novelty_table=self.__novelty_serializer.identifying_table()
         )
         session.add(new_opt)
         await session.flush()
@@ -233,7 +249,7 @@ class EAOptimizer(Process, Generic[Genotype, Fitness, Novelty]):
         self.__ea_optimizer_id = new_opt.id
 
         await self.__save_generation_using_session(
-            session, None, None, self.__latest_population, None
+            session, None, None, None, self.__latest_population, None, None
         )
 
     async def ainit_from_database(
@@ -245,12 +261,16 @@ class EAOptimizer(Process, Generic[Genotype, Fitness, Novelty]):
         genotype_serializer: Type[Serializer[Genotype]],
         fitness_type: Type[Fitness],
         fitness_serializer: Type[Serializer[Fitness]],
+        novelty_type: Type[Novelty],
+        novelty_serializer: Type[Serializer[Novelty]]
     ) -> bool:
         """
         Try to initialize this class async from a database.
 
         Called when creating an instance using `from_database`.
 
+        :param novelty_serializer:
+        :param novelty_type:
         :param database: Database to use for this optimizer.
         :param session: Session to use when loading and saving data to the database during initialization.
         :param db_id: Unique identifier in the completely program specifically made for this optimizer.
@@ -393,25 +413,28 @@ class EAOptimizer(Process, Generic[Genotype, Fitness, Novelty]):
 
             initial_population = self.__latest_population
             initial_fitnesses = self.__latest_fitnesses
+            initial_novelties = self.__latest_novelty
             #no initial novelty since it depends on generation and is not calculated across generations
 
             self.__generation_index += 1
         else:
             initial_population = None
             initial_fitnesses = None
+            initial_novelties = None
 
         while self.__safe_must_do_next_gen():
-
             # let user select parents
-            parent_selections = self.__safe_select_parents(
-                [i.genotype for i in self.__latest_population],
-                self.__latest_fitnesses,
-                self.__offspring_size,) if not novelty_search else self.__safe_select_parents_novelty(
-                [i.genotype for i in self.__latest_population],
-                self.__latest_fitnesses,
-                self.__latest_novelty,
-                self.__offspring_size,
-            )
+            if novelty_search:
+                parent_selections = self.__safe_select_parents_novelty(
+                    [i.genotype for i in self.__latest_population],
+                    self.__latest_fitnesses,
+                    self.__latest_novelty,
+                    self.__offspring_size,)
+            else:
+                parent_selections = self.__safe_select_parents(
+                    [i.genotype for i in self.__latest_population],
+                    self.__latest_fitnesses,
+                    self.__offspring_size,)
 
             # let user create offspring
             offspring = [
@@ -428,6 +451,13 @@ class EAOptimizer(Process, Generic[Genotype, Fitness, Novelty]):
                 offspring,
                 self.__database,
                 self.__db_id.branch(f"evaluate{self.__generation_index}"),
+            )
+
+            new_novelties = await self.__safe_evaluate_generation_novelty(
+                offspring,
+                novelty_test,
+                self.__database,
+                self.__db_id.branch(f"evaluate{self.__generation_index}")
             )
 
             # combine to create list of individuals
@@ -451,6 +481,7 @@ class EAOptimizer(Process, Generic[Genotype, Fitness, Novelty]):
 
             survived_new_individuals = [new_individuals[i] for i in new_survivors]
             survived_new_fitnesses = [new_fitnesses[i] for i in new_survivors]
+            survived_new_novelties = [new_novelties[i] for i in new_survivors]
 
             # set ids for new individuals
             for individual in survived_new_individuals:
@@ -465,6 +496,10 @@ class EAOptimizer(Process, Generic[Genotype, Fitness, Novelty]):
                 self.__latest_fitnesses[i] for i in old_survivors
             ] + survived_new_fitnesses
 
+            self.__latest_novelty = [
+                self.__latest_novelty[i] for i in old_survivors
+            ] + survived_new_novelties
+
             self.__generation_index += 1
 
             # save generation and possibly fitnesses of initial population
@@ -475,8 +510,10 @@ class EAOptimizer(Process, Generic[Genotype, Fitness, Novelty]):
                         session,
                         initial_population,
                         initial_fitnesses,
+                        initial_novelties,
                         survived_new_individuals,
                         survived_new_fitnesses,
+                        survived_new_novelties
                     )
                     self._on_generation_checkpoint(session)
             # in any case they should be none after saving once
@@ -614,8 +651,10 @@ class EAOptimizer(Process, Generic[Genotype, Fitness, Novelty]):
         session: AsyncSession,
         initial_population: Optional[List[_Individual[Genotype]]],
         initial_fitnesses: Optional[List[Fitness]],
+        initial_novelties: Optional[List[Novelty]],
         new_individuals: List[_Individual[Genotype]],
         new_fitnesses: Optional[List[Fitness]],
+        new_novelty: List[Novelty]
     ) -> None:
         # TODO this function can probably be simplified as well as optimized.
         # but it works so I'll leave it for now.
@@ -623,11 +662,15 @@ class EAOptimizer(Process, Generic[Genotype, Fitness, Novelty]):
         # update fitnesses of initial population if provided
         if initial_fitnesses is not None:
             assert initial_population is not None
+            assert initial_novelties is not None
 
             fitness_ids = await self.__fitness_serializer.to_database(
                 session, initial_fitnesses
             )
-            assert len(fitness_ids) == len(initial_fitnesses)
+            novelty_ids = await self.__novelty_serializer.to_database(
+                session, initial_novelties
+            )
+            assert len(fitness_ids) == len(initial_fitnesses) == len(novelty_ids)
 
             rows = (
                 (
@@ -655,6 +698,7 @@ class EAOptimizer(Process, Generic[Genotype, Fitness, Novelty]):
 
             for i, row in enumerate(rows):
                 row.fitness_id = fitness_ids[i]
+                row.novelty_id = novelty_ids[i]
 
         # save current optimizer state
         session.add(
@@ -670,16 +714,23 @@ class EAOptimizer(Process, Generic[Genotype, Fitness, Novelty]):
         )
         assert len(genotype_ids) == len(new_individuals)
         fitness_ids2: List[Optional[int]]
+        novelty_ids2: List[Optional[int]]
         if new_fitnesses is not None:
             fitness_ids2 = [
-                f
-                for f in await self.__fitness_serializer.to_database(
+                f for f in await self.__fitness_serializer.to_database(
                     session, new_fitnesses
                 )
             ]  # this extra comprehension is useless but it stops mypy from complaining
-            assert len(fitness_ids2) == len(new_fitnesses)
+            novelty_ids2 = [
+                n for n in await self.__novelty_serializer.to_database(
+                    session, new_novelty
+                )
+            ]
+
+            assert len(fitness_ids2) == len(new_fitnesses) == len(novelty_ids2)
         else:
             fitness_ids2 = [None for _ in range(len(new_individuals))]
+            novelty_ids2 = [None for _ in range(len(new_individuals))]
 
         session.add_all(
             [
@@ -688,8 +739,9 @@ class EAOptimizer(Process, Generic[Genotype, Fitness, Novelty]):
                     individual_id=i.id,
                     genotype_id=g_id,
                     fitness_id=f_id,
+                    novelty_id=n_id
                 )
-                for i, g_id, f_id in zip(new_individuals, genotype_ids, fitness_ids2)
+                for i, g_id, f_id, n_id in zip(new_individuals, genotype_ids, fitness_ids2, novelty_ids2)
             ]
         )
 
