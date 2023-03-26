@@ -1,7 +1,6 @@
 from abc import abstractmethod
 from typing import List
 from itertools import chain
-
 from math import sqrt
 
 class CompareHistorgrams:
@@ -14,7 +13,6 @@ class CompareHistorgrams:
         score = 0
         for o, e in zip(O,E):
             for vo, ve in zip(o,e):
-                vo += 1e-6
                 ve += 1e-6
                 score += ((abs(vo-ve)-0.5)**2)/ve
         return score
@@ -27,7 +25,6 @@ class CompareHistorgrams:
         score = 0
         for o, e in zip(O, E):
             for vo, ve in zip(o, e):
-                vo += 1e-6
                 ve += 1e-6
                 score += (abs(vo - ve) ** 2) / ve
         return score
@@ -121,6 +118,13 @@ class CompareHistorgrams:
 
         score = upper/(lower_o*lower_e)
         return score
+
+    @classmethod
+    def emd(cls, O: List[List[float]], E: List[List[float]]) -> float:
+        # https://www.cs.cmu.edu/~efros/courses/LBMV07/Papers/rubner-jcviu-00.pdf
+        itr = len(O)
+        assert itr == len(E), f"Error: Histograms have different sizes -> O:{itr}, E:{len(E)}"
+        return wasserstein_distance(O, E)
 
     @abstractmethod
     def example(cls, O: List[List[float]], E: List[List[float]]) -> float:
