@@ -1,51 +1,18 @@
 import argparse
+from typing import Tuple
+
 import matplotlib.pyplot as plt
 import pandas as pd
 
 from numpy import std
 from common.phenotype_framework import PhenotypeFramework as pf
-from repositories.genotype_db import GenotypeDB
 from common.phenotype_framework import PhenotypeFramework
-from revolve2.core.database import open_database_sqlite
 from revolve2.core.optimization import DbId
-from revolve2.genotypes.cppnwin.genotype_schema import DbGenotype
-from revolve2.core.optimization.ea.generic_ea import (
-    DbEAOptimizer,
-    DbEAOptimizerGeneration,
-    DbEAOptimizerIndividual,
-)
-from sqlalchemy.future import select
+from _load_db import load_db
+
 
 
 class EAPlots:
-
-    @classmethod
-    def _get_db_to_df(cls, database: str, db_id: DbId) -> pd.DataFrame:
-        db = open_database_sqlite(database)
-        # read the optimizer data into a pandas dataframe
-        df = pd.read_sql(
-            select(
-                DbEAOptimizer,
-                DbEAOptimizerGeneration,
-                DbEAOptimizerIndividual,
-                DbGenotype,
-                GenotypeDB
-
-            ).filter(
-                (DbEAOptimizer.db_id == db_id.fullname)
-                & (DbEAOptimizerGeneration.ea_optimizer_id == DbEAOptimizer.id)
-                & (DbEAOptimizerIndividual.ea_optimizer_id == DbEAOptimizer.id)
-                & (DbEAOptimizerIndividual.genotype_id == GenotypeDB.id)
-                & (GenotypeDB.body_id == DbGenotype.id)
-                & (
-                        DbEAOptimizerGeneration.individual_id
-                        == DbEAOptimizerIndividual.individual_id
-                )
-            ),
-            db,
-        )
-        return df
-
     @classmethod
     def _normalize_list(cls, lst: list) -> list:
         vmin = min(lst)
@@ -53,7 +20,7 @@ class EAPlots:
         return [(x - vmin) / (vmax - vmin) for x in lst]
 
     @classmethod
-    def plot_blocks_hinges(cls, database: str, db_id: DbId, *_) -> None:
+    def plot_bricks_hinges(cls, database: str, db_id: DbId = DbId("optmodular"), *_) -> None:
         """
         Plot fitness as described at the top of this file.
 
@@ -61,9 +28,9 @@ class EAPlots:
         :param db_id: Id of the evolutionary process to plot.
         """
 
-        df = cls._get_db_to_df(database, db_id)
+        df = load_db(database, db_id)
 
-        df["blocks"], df["hinges"] = zip(*df.serialized_multineat_genome.apply(PhenotypeFramework.get_blocks_hinges_amount))
+        df["bricks"], df["hinges"] = zip(*df.serialized_multineat_genome.apply(PhenotypeFramework.get_bricks_hinges_amount))
 
         # calculate max min avg
         hngs = (
@@ -73,12 +40,15 @@ class EAPlots:
         )
 
         blcks = (
-            df[["generation_index", "blocks"]]
+            df[["generation_index", "bricks"]]
             .groupby(by="generation_index")
-            .describe()["blocks"]
+            .describe()["bricks"]
         )
 
+        test = database.replace("experiments/database_", "")
+
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 5))
+        fig.suptitle(f"{test}")
 
         ax1.set_xlabel("Generations")
         ax1.set_ylabel("Amount of Hinges")
@@ -86,14 +56,46 @@ class EAPlots:
         ax1.legend()
 
         ax2.set_xlabel("Generations")
-        ax2.set_ylabel("Amount of Blocks")
+        ax2.set_ylabel("Amount of bricks")
         ax2.plot(blcks[["max", "mean", "min"]], label=["Max", "Mean", "Min"])
         ax2.legend()
 
         plt.show()
 
     @classmethod
-    def plot_novelty(cls, database: str, db_id: DbId, *test) -> None:
+    def plot_novelty_from_db(cls, database: str, db_id: DbId = DbId("optmodular"), *_) -> None:
+        """
+        Plot fitness as described at the top of this file.
+
+        :param database: Database where the data is stored.
+        :param db_id: Id of the evolutionary process to plot.
+        """
+
+        df = load_db(database, db_id)
+
+        nvlt = (
+            df[["generation_index", "value"]]
+            .groupby(by="generation_index"))
+
+        nvlts = nvlt.describe()["value"]
+        bxpl_data = [n["value"].values for _, n in nvlt]
+
+        test = database.replace("experiments/database_", "")
+        fig, ax = plt.subplots(1, 1, figsize=(5, 5))
+        fig.suptitle(f"{test}")
+
+        ax.set_xlabel("Generations")
+        ax.set_ylabel("Novelty")
+        ax.plot(nvlts[["max", "mean", "min"]], label=["Max", "Mean", "Min"])
+        ax.boxplot(bxpl_data, positions=list(range(len(bxpl_data))))
+        ax.legend()
+        plt.show()
+
+    @classmethod
+    def plot_novelty(cls,
+                     database: str,
+                     novelty_test:Tuple[str, float] = ("chybyshev-dist", None),
+                     db_id: DbId = DbId("optmodular")) -> None:
         """
         :param database: name of the db
         :param db_id: id of the database
@@ -102,17 +104,15 @@ class EAPlots:
                     'manhattan-dist', 'euclidian-dist', 'pcc'
         :return:
         """
-        test = test[0] if test[0] else "chybyshev_distance"
-
-        df = cls._get_db_to_df(database, db_id)
+        df = load_db(database, db_id)
 
         generation_groups = df[["generation_index", "serialized_multineat_genome"]].groupby(by="generation_index")
         genome_groups = [data["serialized_multineat_genome"].values for _, data in generation_groups]
 
         data = []
         for generation in genome_groups:
-            novelty_scores = pf.get_novelty_population(generation, normalization="clipping", test=test)
-            data.append(cls._normalize_list(novelty_scores))
+            novelty_scores = pf.get_novelty_population(generation, normalization="clipping", novelty_test=novelty_test)
+            data.append(novelty_scores)
 
         avg, vmax, vmin, vstd = [], [], [], []
         for sublist in data:
@@ -122,7 +122,7 @@ class EAPlots:
             vstd.append(std(sublist))
 
         fig, ax = plt.subplots()
-        ax.set_title(f"Novelty Score for: {test}-Test")
+        ax.set_title(f"Novelty Score for: {novelty_test}-Test")
         ax.plot(avg, label="average", color="blue")
         ax.boxplot(data, positions=list(range(len(data))))
 
@@ -149,7 +149,7 @@ def main() -> None:
     parser.add_argument(
         "plot",
         type=str,
-        help="The type of plot (blocks_hinges, novelty_scores)"
+        help="The type of plot (bricks_hinges, novelty_scores)"
     )
     parser.add_argument(
         "test",
@@ -160,7 +160,7 @@ def main() -> None:
 
     args = parser.parse_args()
 
-    {"blocks_hinges": EAPlots.plot_blocks_hinges,
+    {"bricks_hinges": EAPlots.plot_bricks_hinges,
      "novelty": EAPlots.plot_novelty}[args.plot](args.database, DbId(args.db_id), args.test)
 
 
