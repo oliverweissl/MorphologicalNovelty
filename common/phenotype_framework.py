@@ -42,8 +42,7 @@ class PhenotypeFramework:
         coords = [cls._body_to_sorted_coordinates(body) for body in bodies]
         coords = [cls._coordinates_pca_change_basis(coord) for coord in coords] # PCA change of basis -> orientation of variance/ covariance
 
-        brick_hists = [None] * amt_instances
-        hinge_hists = [None] * amt_instances
+        brick_hists, hinge_hists = [None] * amt_instances, [None] * amt_instances
 
         i = 0
         for coord in coords:
@@ -158,7 +157,7 @@ class PhenotypeFramework:
         return mags, orient
 
     @classmethod
-    def _gen_gradient_histogram(cls, magnitudes: List[float], orientations: List[Tuple[float, float]], num_bins: int = 18) -> ndarray:
+    def _gen_gradient_histogram(cls, magnitudes: List[float], orientations: List[Tuple[float, float]], num_bins: int = 20) -> ndarray:
         """
         Generates a 2D-Historgram of oriented gradients, using bins to standardize feature size. Can be normalized in various ways to make it comparable.
         :param magnitudes: Magnitudes List[float]
