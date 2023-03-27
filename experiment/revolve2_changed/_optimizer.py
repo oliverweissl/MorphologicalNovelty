@@ -217,7 +217,7 @@ class EAOptimizer(Process, Generic[Genotype, Fitness, Novelty]):
         self.__genotype_serializer = genotype_serializer
         self.__fitness_type = fitness_type
         self.__fitness_serializer = fitness_serializer
-        self.__novelty_type = novelty_type
+        self.__novelty_type = fitness_type
         self.__novelty_serializer = novelty_serializer
         self.__offspring_size = offspring_size
         self.__next_individual_id = 0
@@ -261,7 +261,7 @@ class EAOptimizer(Process, Generic[Genotype, Fitness, Novelty]):
         fitness_type: Type[Fitness],
         fitness_serializer: Type[Serializer[Fitness]],
         novelty_type: Type[Novelty],
-        novelty_serializer: Type[Serializer[Novelty]]
+        novelty_serializer: Type[Serializer[Novelty]],
     ) -> bool:
         """
         Try to initialize this class async from a database.
@@ -286,6 +286,8 @@ class EAOptimizer(Process, Generic[Genotype, Fitness, Novelty]):
         self.__genotype_serializer = genotype_serializer
         self.__fitness_type = fitness_type
         self.__fitness_serializer = fitness_serializer
+        self.__novelty_type = novelty_type
+        self.__novelty_serializer = novelty_serializer
 
         try:
             eo_row = (
