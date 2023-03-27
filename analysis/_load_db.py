@@ -11,7 +11,7 @@ from repositories.genotype_db_schema import GenotypeDB
 from repositories.float_schema import FloatDB
 from sqlalchemy.future import select
 
-def load_db(database: str, db_id: DbId) -> pd.DataFrame:
+def load_db(database: str, db_id: DbId = DbId("optmodular")) -> pd.DataFrame:
     # open the database
     db = open_database_sqlite(database)
     # read the optimizer data into a pandas dataframe
