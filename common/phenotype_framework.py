@@ -26,7 +26,7 @@ class PhenotypeFramework:
         return len(bricks), len(hinges)
 
     @classmethod
-    def get_novelty_population(cls, genotypes: List[Genotype | str], novelty_test: Tuple[str|None, float|None],  normalization: str = None) -> List[float]:
+    def get_novelty_population(cls, genotypes: List[Genotype | str]) -> List[float]:
         """
         calculates novelty across population.
         :param genotypes: List[Genotype | str] --> list of genotypes for population.
@@ -42,7 +42,6 @@ class PhenotypeFramework:
         coords = [cls._body_to_sorted_coordinates(body) for body in bodies]
         coords = [cls._coordinates_pca_change_basis(coord) for coord in coords] # PCA change of basis -> orientation of variance/ covariance
 
-
         brick_hists = [None] * amt_instances
         hinge_hists = [None] * amt_instances
 
@@ -50,35 +49,33 @@ class PhenotypeFramework:
         for coord in coords:
             brick_mag, brick_orient = cls._coordinates_to_magnitudes_orientation(coord[0])
             brick_hists[i] = cls._gen_gradient_histogram(magnitudes=brick_mag,
-                                                         orientations=brick_orient,
-                                                         normalization=normalization)
+                                                         orientations=brick_orient)
 
             hinge_mag, hinge_orient = cls._coordinates_to_magnitudes_orientation(coord[1])
             hinge_hists[i] = cls._gen_gradient_histogram(magnitudes=hinge_mag,
-                                                         orientations=hinge_orient,
-                                                         normalization=normalization)
+                                                         orientations=hinge_orient)
             i += 1
 
         brick_novelty_scores = [0] * amt_instances
         hinge_novelty_scores = [0] * amt_instances
         for i in range(amt_instances - 1):
             for j in range(i + 1, amt_instances):
-                brick_score = cls._compare_hist(brick_hists[i], brick_hists[j], novelty_test)
+                brick_score = cls._compare_hist(brick_hists[i], brick_hists[j])
                 brick_novelty_scores[i] += brick_score
                 brick_novelty_scores[j] += brick_score
 
-                hinge_score = cls._compare_hist(hinge_hists[i], hinge_hists[j], novelty_test)
+                hinge_score = cls._compare_hist(hinge_hists[i], hinge_hists[j])
                 hinge_novelty_scores[i] += hinge_score
                 hinge_novelty_scores[j] += hinge_score
-                #print(f"Instances: {i}, {j}: brick_score: {brick_score}, hinge_score:  {hinge_score}")
+
 
         novelty_scores = [(b_score + h_score) / 2
                           for b_score, h_score in zip(brick_novelty_scores, hinge_novelty_scores)]
 
-
-        novelty_scores = cls._normalize_list(novelty_scores, "scaling")
+        mscore = max(novelty_scores)
+        novelty_scores = [score/mscore if score > 0. else 0. for score in novelty_scores]
         # scaling because the min novelty is 0 in theory --> some populations can have no duplicates therefore no 0s
-        return novelty_scores.tolist()
+        return novelty_scores
 
     @classmethod
     def deserialize(cls, serialized_genotype: str):
@@ -87,21 +84,8 @@ class PhenotypeFramework:
         return genotype
 
     @classmethod
-    def _compare_hist(cls, O: List[List[float]], E: List[List[float]], novelty_test: Tuple[str, float|None]) -> float:
-        test, p = novelty_test
-        assert (test is not None) or (p is not None), "ERROR: no test or p value given"
-        # selects test functions
-        if p is not None:
-            score = ch.minkowsky_distance(O, E, p)
-        else:
-            score = {'yates-chi-squared': ch.yates_chi_squared,
-                     'chi-squared': ch.chi_squared,
-                     'hellinger-dist': ch.hellinger_distance,
-                     'manhattan-dist': ch.manhattan_distance,
-                     'euclidian-dist': ch.euclidian_distance,
-                     'chybyshev-dist': ch.chybyshev_distance,
-                     'pcc': ch.pearsons_correlation_coefficient,
-                     }[test](O, E)
+    def _compare_hist(cls, O: List[List[float]], E: List[List[float]]) -> float:
+        score = ch.wasserstein_dist(O, E)
         return score
 
     @classmethod
@@ -155,9 +139,6 @@ class PhenotypeFramework:
             bricks = np.dot(inv_sorted_v, bricks.T) if len(bricks) > 0 else bricks
             hinges = np.dot(inv_sorted_v, hinges.T) if len(hinges) > 0 else hinges
             bricks, hinges = bricks.T, hinges.T
-
-
-
         return bricks, hinges
 
     @classmethod
@@ -177,7 +158,7 @@ class PhenotypeFramework:
         return mags, orient
 
     @classmethod
-    def _gen_gradient_histogram(cls, magnitudes: List[float], orientations: List[Tuple[float, float]], normalization: str | None, num_bins: int = 18) -> ndarray:
+    def _gen_gradient_histogram(cls, magnitudes: List[float], orientations: List[Tuple[float, float]], num_bins: int = 18) -> ndarray:
         """
         Generates a 2D-Historgram of oriented gradients, using bins to standardize feature size. Can be normalized in various ways to make it comparable.
         :param magnitudes: Magnitudes List[float]
@@ -198,22 +179,18 @@ class PhenotypeFramework:
             x, z = _get_bin_idx(rot, bin_size)
             hist[x][z] += mag
 
-        hist = cls._normalize_list(hist, normalization)
+        hist = np.asarray(hist, dtype=float)
+        hist = cls._wasserstein_softmax(hist)
         return hist
 
     @staticmethod
-    def _normalize_list(lst: list | np.array, normalization: str | None) -> ndarray:
-        new_lst = np.asarray(lst)
-        max_val, min_val = new_lst.max(), new_lst.min()
-
-        if not normalization:
-            norm = lambda x: x
-        elif "clipping" in normalization:
-            norm = lambda x: (x - min_val) / (max_val - min_val) if max_val != min_val else x
-        elif "log" in normalization:
-            norm = lambda x: np.ma.log(x).filled(0)
-        elif "scaling" in normalization:
-            norm = lambda x: x / max_val if max_val != min_val else x
-
-        normalized_array = norm(lst)
-        return normalized_array
+    def _wasserstein_softmax(arr: ndarray) -> ndarray:
+        """
+        softmax adjusted to handle empty histograms for wasserstein distance measure.
+        Adds small bias to all bins -> non empty hist
+        :param arr: histogram NxN
+        :return:
+        """
+        arr += (1/arr.size)
+        norm = np.true_divide(arr, arr.sum())
+        return norm
