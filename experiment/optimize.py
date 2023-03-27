@@ -2,7 +2,6 @@
 
 import logging
 from random import Random
-from typing import Tuple
 
 import multineat
 from .genotype import random as random_genotype
@@ -11,7 +10,7 @@ from revolve2.core.database import open_async_database_sqlite
 from revolve2.core.optimization import DbId
 
 
-async def main(novelty_test:Tuple[str, float|None] = ("chybyshev-dist",None)) -> None:
+async def main() -> None:
     """Run the optimization process."""
     # number of initial mutations for body and brain CPPNWIN networks
     NUM_INITIAL_MUTATIONS = 10
@@ -38,7 +37,7 @@ async def main(novelty_test:Tuple[str, float|None] = ("chybyshev-dist",None)) ->
     rng.seed(6)
 
     # database
-    db_str = f"./experiments/database_{novelty_test[0]}{'p: '+ str(novelty_test[1])}" if novelty_test[1] is not None else f"./experiments/database_{novelty_test[0]}"
+    db_str = f"./experiments/database"
     database = open_async_database_sqlite(db_str, create=True)
 
     # unique database identifier for optimizer
@@ -79,7 +78,7 @@ async def main(novelty_test:Tuple[str, float|None] = ("chybyshev-dist",None)) ->
 
     logging.info("Starting optimization process..")
 
-    await optimizer.run(novelty_search=NOVELTY_SEARCH, novelty_test=novelty_test)
+    await optimizer.run(novelty_search=NOVELTY_SEARCH)
 
     logging.info("Finished optimizing.")
 

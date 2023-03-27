@@ -1,5 +1,5 @@
 """Optimizer for finding a good modular robot body and brain using CPPNWIN genotypes and simulation using mujoco."""
-
+import logging
 import math
 import pickle
 from random import Random
@@ -310,10 +310,9 @@ class Optimizer(EAOptimizer[Genotype, float, float]):
 
     async def _evaluate_generation_novelty(self,
                                            genotypes: List[Genotype],
-                                           novelty_test: Tuple[str|None, float|None],
                                            database: AsyncEngine,
                                            db_id: DbId,) -> List[float]:
-        novelty = PF.get_novelty_population([genotype.body for genotype in genotypes], novelty_test=novelty_test, normalization="clipping")
+        novelty = PF.get_novelty_population([genotype.body for genotype in genotypes])
         return novelty
 
     @staticmethod
@@ -330,7 +329,8 @@ class Optimizer(EAOptimizer[Genotype, float, float]):
 
     @staticmethod
     def _calculate_novelty(genotypes: List[Genotype]) -> List[float]:
-        return PF.get_novelty_population(genotypes, normalization="clipping")
+        logging.info("calculating novelty for population")
+        return PF.get_novelty_population(genotypes)
 
     def _on_generation_checkpoint(self, session: AsyncSession) -> None:
         session.add(
