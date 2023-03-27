@@ -80,14 +80,13 @@ class EAPlots:
         nvlts = nvlt.describe()["value"]
         bxpl_data = [n["value"].values for _, n in nvlt]
 
-        test = database.replace("experiments/database_", "")
         fig, ax = plt.subplots(1, 1, figsize=(5, 5))
-        fig.suptitle(f"{test}")
+        fig.suptitle("Novelty Score")
 
         ax.set_xlabel("Generations")
         ax.set_ylabel("Novelty")
         ax.plot(nvlts[["max", "mean", "min"]], label=["Max", "Mean", "Min"])
-        ax.boxplot(bxpl_data, positions=list(range(len(bxpl_data))))
+        ax.violinplot(bxpl_data, positions=list(range(1,len(bxpl_data)+1)))
         ax.legend()
         plt.show()
 
