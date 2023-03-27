@@ -10,7 +10,7 @@ from revolve2.core.database import open_async_database_sqlite
 from revolve2.core.optimization import DbId
 
 
-async def main() -> None:
+async def main(novelty_search: bool = True) -> None:
     """Run the optimization process."""
     # number of initial mutations for body and brain CPPNWIN networks
     NUM_INITIAL_MUTATIONS = 10
@@ -23,7 +23,6 @@ async def main() -> None:
     OFFSPRING_SIZE = 30 # tournament on only new individuals
     NUM_GENERATIONS = 10
 
-    NOVELTY_SEARCH = True
 
     logging.basicConfig(
         level=logging.INFO,
@@ -78,7 +77,7 @@ async def main() -> None:
 
     logging.info("Starting optimization process..")
 
-    await optimizer.run(novelty_search=NOVELTY_SEARCH)
+    await optimizer.run(novelty_search=novelty_search)
 
     logging.info("Finished optimizing.")
 
