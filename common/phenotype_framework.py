@@ -101,7 +101,6 @@ class PhenotypeFramework:
 
         x_size, y_size, z_size = body_arr.shape
 
-
         flat_body_arr = body_arr.flatten()
         flat_body_coords = np.asarray([[[
             tuple(np.subtract((x, y, z), core_pos)) for x in range(x_size)]
@@ -127,32 +126,34 @@ class PhenotypeFramework:
         [all_coords.append(val) for val in bricks if len(bricks) > 0]
         [all_coords.append(val) for val in hinges if len(hinges) > 0]
 
-        if len(all_coords) > 1: #has to be more than 1 block, otherwise np.cov doesnt work
+        if len(all_coords) > 1: # covariance only works with n > 1 points
             all_coords = np.asarray(all_coords).T
 
-            A = np.cov(all_coords)
-            e, v = np.linalg.eig(np.dot(A, A.T)/(len(all_coords)-1)) # eigenvalues, eigenvectors
-            srt = np.argsort(-e) #sorting axis, x-axis: biggest variance, y-axis second biggest, z-axis:smallest
-            inv_sorted_v = np.linalg.inv(v[srt].T)
+            covariance_matrix = np.cov(all_coords)
+            eigen_values, eigen_vectors = np.linalg.eig(
+                np.dot(covariance_matrix,
+                       covariance_matrix.T)/(len(all_coords)-1)) # eigenvalues, eigenvectors
 
-            bricks = np.dot(inv_sorted_v, bricks.T) if len(bricks) > 0 else bricks
-            hinges = np.dot(inv_sorted_v, hinges.T) if len(hinges) > 0 else hinges
-            bricks, hinges = bricks.T, hinges.T
-        return bricks, hinges
+            srt = np.argsort(-eigen_values) # sorting axis, x-axis: biggest variance, y-axis second biggest, z-axis:smallest
+            inv_sorted_vectors = np.linalg.inv(eigen_vectors[srt].T)
+
+            bricks = np.dot(inv_sorted_vectors, bricks.T) if len(bricks) > 0 else bricks
+            hinges = np.dot(inv_sorted_vectors, hinges.T) if len(hinges) > 0 else hinges
+        return bricks.T, hinges.T
 
     @classmethod
     def _coordinates_to_magnitudes_orientation(cls, coordinates: List[Tuple]) -> Tuple[List[float], List[Tuple[float, float]]]:
         mags = [None] * len(coordinates)  # faster than append
         orient = [None] * len(coordinates)  # faster than append
         i = 0  # faster than enumerate
-        for elem in coordinates:
-            elem = list(elem)
-            ax = atan2(sqrt(elem[1] ** 2 + elem[2] ** 2), elem[0]) * 180 / pi
-            az = atan2(elem[2], sqrt(elem[1] ** 2 + elem[0] ** 2)) * 180 / pi
+        for coord in coordinates:
+            coord = list(coord)
+            ax = atan2(sqrt(coord[1] ** 2 + coord[2] ** 2), coord[0]) * 180 / pi
+            az = atan2(coord[2], sqrt(coord[1] ** 2 + coord[0] ** 2)) * 180 / pi
             orient[i] = (ax, az)
 
-            elem = np.asarray(elem)
-            mags[i] = np.sqrt(elem.dot(elem))
+            coord = np.asarray(coord)
+            mags[i] = np.sqrt(coord.dot(coord))
             i += 1
         return mags, orient
 
@@ -167,20 +168,20 @@ class PhenotypeFramework:
         :return:
         """
 
-        def _get_bin_idx(orientation: Tuple[float, float], bin_size) -> (int, int):
-            return int(orientation[0] / bin_size), int(orientation[1] / bin_size)
-
         bin_size = int(360 / num_bins)
         assert bin_size == 360 / num_bins, "Error: num_bins has to be a divisor of 360"
 
-        hist = [[0] * num_bins for _ in range(num_bins)]  # faster than with numpy
+        hist = np.zeros((num_bins, num_bins), dtype=float)
         for rot, mag in zip(orientations, magnitudes):
-            x, z = _get_bin_idx(rot, bin_size)
+            x, z = cls._get_bin_idx(rot, bin_size)
             hist[x][z] += mag
 
-        hist = np.asarray(hist, dtype=float)
         hist = cls._wasserstein_softmax(hist)
         return hist
+
+    @classmethod
+    def _get_bin_idx(cls, orientation: Tuple[float, float], bin_size) -> (int, int):
+        return int(orientation[0] / bin_size), int(orientation[1] / bin_size)
 
     @staticmethod
     def _wasserstein_softmax(arr: ndarray) -> ndarray:
