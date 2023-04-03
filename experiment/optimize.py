@@ -36,7 +36,7 @@ async def main(novelty_search: bool = True) -> None:
     rng.seed(6)
 
     # database
-    db_str = f"./experiments/database"
+    db_str = "./experiments/database_novelty" if novelty_search else "./experiments/database"
     database = open_async_database_sqlite(db_str, create=True)
 
     # unique database identifier for optimizer
