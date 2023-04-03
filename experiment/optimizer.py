@@ -199,6 +199,7 @@ class Optimizer(EAOptimizer[Genotype, float, float]):
     def _init_runner(self) -> None:
         self._runner = LocalRunner(headless=True)
 
+    #TODO: randomness in parent selection -> not deterministic
     def _select_parents(
         self,
         population: List[Genotype],
@@ -233,6 +234,7 @@ class Optimizer(EAOptimizer[Genotype, float, float]):
             for _ in range(num_parent_groups)
         ]
 
+    # TODO:
     def _select_survivors(
         self,
         old_individuals: List[Genotype],
