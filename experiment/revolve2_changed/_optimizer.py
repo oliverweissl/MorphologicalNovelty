@@ -55,7 +55,6 @@ class EAOptimizer(Process, Generic[Genotype, Fitness, Novelty]):
     @abstractmethod
     async def _evaluate_generation_novelty(self,
                                            genotypes: List[Genotype],
-                                           novelty_test: Tuple[str, float|None],
                                            database: AsyncEngine,
                                            db_id: DbId,) -> List[Novelty]:
         """
@@ -218,7 +217,7 @@ class EAOptimizer(Process, Generic[Genotype, Fitness, Novelty]):
         self.__genotype_serializer = genotype_serializer
         self.__fitness_type = fitness_type
         self.__fitness_serializer = fitness_serializer
-        self.__novelty_type = novelty_type
+        self.__novelty_type = fitness_type
         self.__novelty_serializer = novelty_serializer
         self.__offspring_size = offspring_size
         self.__next_individual_id = 0
@@ -262,7 +261,7 @@ class EAOptimizer(Process, Generic[Genotype, Fitness, Novelty]):
         fitness_type: Type[Fitness],
         fitness_serializer: Type[Serializer[Fitness]],
         novelty_type: Type[Novelty],
-        novelty_serializer: Type[Serializer[Novelty]]
+        novelty_serializer: Type[Serializer[Novelty]],
     ) -> bool:
         """
         Try to initialize this class async from a database.
@@ -287,6 +286,8 @@ class EAOptimizer(Process, Generic[Genotype, Fitness, Novelty]):
         self.__genotype_serializer = genotype_serializer
         self.__fitness_type = fitness_type
         self.__fitness_serializer = fitness_serializer
+        self.__novelty_type = novelty_type
+        self.__novelty_serializer = novelty_serializer
 
         try:
             eo_row = (
@@ -395,12 +396,11 @@ class EAOptimizer(Process, Generic[Genotype, Fitness, Novelty]):
 
         return True
 
-    async def run(self, novelty_search:bool, novelty_test: Tuple[str, float|None]) -> None:
+    async def run(self, novelty_search:bool) -> None:
         """Run the optimizer."""
         # evaluate initial population if required
         self.__latest_novelty = await self.__safe_evaluate_generation_novelty(
             [i.genotype for i in self.__latest_population],
-            novelty_test,
             self.__database,
             self.__db_id.branch(f"evaluate{self.__generation_index}"),)
 
@@ -455,7 +455,6 @@ class EAOptimizer(Process, Generic[Genotype, Fitness, Novelty]):
 
             new_novelties = await self.__safe_evaluate_generation_novelty(
                 offspring,
-                novelty_test,
                 self.__database,
                 self.__db_id.branch(f"evaluate{self.__generation_index}")
             )
@@ -560,11 +559,10 @@ class EAOptimizer(Process, Generic[Genotype, Fitness, Novelty]):
 
     async def __safe_evaluate_generation_novelty(self,
         genotypes: List[Genotype],
-        novelty_test: Tuple[str|None, float|None],
         database: AsyncEngine,
         db_id: DbId,) -> List[Novelty]:
 
-        novelty = await self._evaluate_generation_novelty(genotypes=genotypes, novelty_test=novelty_test, database= database, db_id=db_id)
+        novelty = await self._evaluate_generation_novelty(genotypes=genotypes, database= database, db_id=db_id)
         assert type(novelty) == list
         assert len(novelty) == len(genotypes)
         assert all(type(e) == self.__fitness_type for e in novelty)
