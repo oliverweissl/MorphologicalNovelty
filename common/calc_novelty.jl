@@ -2,13 +2,12 @@ using Shuffle
 #=
 functions:
 - Julia version: 
-- Author: oliver
+- Author: oliver weissl
 - Date: 2023-04-06
 =#
-INT_CASTER = 10_000
-function apply_noise_mask(hist)
+function apply_noise_mask(hist, INT_CASTER::Int16)
     xsize, ysize = size(hist)
-    diff = INT_CASTER - sum(hist)
+    diff::Int16 = INT_CASTER - sum(hist)
 
     mask = zeros(Int8, xsize*ysize)
     mask = shuffle(replace(mask, 0=>1, count=diff))
@@ -16,27 +15,26 @@ function apply_noise_mask(hist)
     return hist + mask
 end
 
-function move_supply(supply, fcoord , capacity, tcoord)
+function move_supply(supply, fcoord::CartesianIndex , capacity, tcoord::CartesianIndex, INT_CASTER::Int16)
     if supply[fcoord] <= capacity[tcoord]
         flow = supply[fcoord]
         capacity[tcoord] -= flow
-        supply[fcoord] = 0
+        supply[fcoord]::Int8 = 0
     else
         flow = capacity[tcoord]
         supply[fcoord] -= flow
-        capacity[tcoord] = 0
+        capacity[tcoord]::Int8 = 0
     end
     distance = sqrt(abs(fcoord[1]-tcoord[1])^2 + abs(fcoord[2]-tcoord[2])^2)
     score = flow/INT_CASTER*distance
     return score, supply, capacity
 end
 
-
-function wasserstein_distance(hist0::AbstractArray, hist1::AbstractArray)
+function wasserstein_distance(hist0, hist1, INT_CASTER::Int16)::Float16
     xsize, ysize = size(hist0)
 
     supply, capacity = floor.(Int16, copy(hist0)*INT_CASTER), floor.(Int16, copy(hist1)*INT_CASTER)
-    supply, capacity = apply_noise_mask(supply), apply_noise_mask(capacity)
+    supply, capacity = apply_noise_mask(supply, INT_CASTER), apply_noise_mask(capacity, INT_CASTER)
 
     score = 0
     while true
@@ -47,19 +45,20 @@ function wasserstein_distance(hist0::AbstractArray, hist1::AbstractArray)
             break
         end
 
-        work, supply, capacity = move_supply(supply, from_idx, capacity, to_idx)
+        work, supply, capacity = move_supply(supply, from_idx, capacity, to_idx, INT_CASTER)
         score += work
     end
     return score
 end
 
-function calculate_novelty(histograms::AbstractArray)
-    amt_instances = length(histograms)
+function calculate_novelty(histograms)
+    INT_CASTER::Int16 = 10000
+    amt_instances::Int8 = length(histograms) # population = 100 -> int8 goes until 127
 
     novelty_scores = zeros(amt_instances)
     for i = 1:amt_instances-1
         for j = 1+i:amt_instances
-            score = wasserstein_distance(histograms[i], histograms[j])
+            score = wasserstein_distance(histograms[i], histograms[j], INT_CASTER)
             novelty_scores[i] += score
             novelty_scores[j] += score
         end

@@ -42,7 +42,7 @@ class PhenotypeFramework:
         amt_instances = len(genotypes)
         bodies = [develop_v1(genotype) for genotype in genotypes] # db only returns Genotypes, can be swithced to str using cls.deserialize()
 
-        # TODO: all arithmetic in julia
+
         coords = [cls._coordinates_pca_change_basis(cls._body_to_sorted_coordinates(body)) for body in bodies]  # PCA change of basis -> orientation of variance/ covariance
 
         brick_hists, hinge_hists = [None] * amt_instances, [None] * amt_instances
@@ -57,6 +57,7 @@ class PhenotypeFramework:
                                                          orientations=hinge_orient)
             i += 1
 
+        # This takes most computation -> in python: ~ 63 sec, julia: ~ 34 sec
         brick_novelty_scores, hinge_novelty_scores = Main.calculate_novelty(brick_hists), Main.calculate_novelty(hinge_hists)
 
         novelty_scores = [float((b_score + h_score) / 2)
