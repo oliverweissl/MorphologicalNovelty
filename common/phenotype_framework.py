@@ -43,7 +43,6 @@ class PhenotypeFramework:
         coords = [cls._coordinates_pca_change_basis(coord) for coord in coords] # PCA change of basis -> orientation of variance/ covariance
 
         brick_hists, hinge_hists = [None] * amt_instances, [None] * amt_instances
-
         i = 0
         for coord in coords:
             brick_mag, brick_orient = cls._coordinates_to_magnitudes_orientation(coord[0])
@@ -83,12 +82,12 @@ class PhenotypeFramework:
         return genotype
 
     @classmethod
-    def _compare_hist(cls, O: List[List[float]], E: List[List[float]]) -> float:
+    def _compare_hist(cls, O: ndarray, E: ndarray) -> float:
         score = ch.wasserstein_dist(O, E)
         return score
 
     @classmethod
-    def _body_to_sorted_coordinates(cls, body: Body) -> (List[Tuple], List[Tuple]):
+    def _body_to_sorted_coordinates(cls, body: Body) -> (ndarray, ndarray):
         """
         Generates coordinates from Body object. All resulting coordinates are normalized to (0,0,0)
         --> core is forced to the origin.
@@ -99,37 +98,30 @@ class PhenotypeFramework:
         body_arr, core_pos = body.to_grid()
         body_arr = np.asarray(body_arr)
 
-        x_size, y_size, z_size = body_arr.shape
-
-        flat_body_arr = body_arr.flatten()
-        flat_body_coords = np.asarray([[[
-            tuple(np.subtract((x, y, z), core_pos)) for x in range(x_size)]
-            for y in range(y_size)]
-            for z in range(z_size)], dtype="i,i,i").flatten()
-
         bricks, hinges = [], []
-        for elem, coord in zip(flat_body_arr, flat_body_coords):
-            if isinstance(elem, ActiveHinge):
-                hinges.append(coord)
-            elif isinstance(elem, Brick):
-                bricks.append(coord)
 
+        it = np.nditer(body_arr, flags=["multi_index", "refs_ok"])  # wow this is fast
+        for elem in it:
+            if isinstance(elem, ActiveHinge):
+                hinges.append(list(np.subtract(it.multi_index, core_pos)))
+            elif isinstance(elem, Brick):
+                bricks.append(list(np.subtract(it.multi_index, core_pos)))
+        bricks, hinges = np.asarray(bricks), np.asarray(hinges)
         return bricks, hinges
 
     @classmethod
-    def _coordinates_pca_change_basis(cls, coords: Tuple[List[Tuple], List[Tuple]]) -> (ndarray, ndarray):
+    def _coordinates_pca_change_basis(cls, coords: Tuple[ndarray, ndarray]) -> (ndarray, ndarray):
         bricks, hinges = coords
-        bricks = np.asarray([list(b) for b in bricks])
-        hinges = np.asarray([list(h) for h in hinges])
 
-        all_coords = []
-        [all_coords.append(val) for val in bricks if len(bricks) > 0]
-        [all_coords.append(val) for val in hinges if len(hinges) > 0]
+        all_coords = np.copy(hinges)
+        if bricks.size and hinges.size:
+            all_coords = np.concatenate(bricks, hinges)
+        elif bricks.size:
+            all_coords = np.copy(bricks)
 
         if len(all_coords) > 1: # covariance only works with n > 1 points
-            all_coords = np.asarray(all_coords).T
-
-            covariance_matrix = np.cov(all_coords)
+            #all_coords = np.asarray(all_coords.T)
+            covariance_matrix = np.cov(all_coords.T)
             eigen_values, eigen_vectors = np.linalg.eig(
                 np.dot(covariance_matrix,
                        covariance_matrix.T)/(len(all_coords)-1)) # eigenvalues, eigenvectors
@@ -137,23 +129,21 @@ class PhenotypeFramework:
             srt = np.argsort(-eigen_values) # sorting axis, x-axis: biggest variance, y-axis second biggest, z-axis:smallest
             inv_sorted_vectors = np.linalg.inv(eigen_vectors[srt].T)
 
-            bricks = np.dot(inv_sorted_vectors, bricks.T) if len(bricks) > 0 else bricks
-            hinges = np.dot(inv_sorted_vectors, hinges.T) if len(hinges) > 0 else hinges
-        return bricks.T, hinges.T
+            bricks = np.dot(inv_sorted_vectors, bricks.T).T if len(bricks) > 0 else bricks
+            hinges = np.dot(inv_sorted_vectors, hinges.T).T if len(hinges) > 0 else hinges
+        return bricks, hinges
 
     @classmethod
-    def _coordinates_to_magnitudes_orientation(cls, coordinates: List[Tuple]) -> Tuple[List[float], List[Tuple[float, float]]]:
-        mags = [None] * len(coordinates)  # faster than append
-        orient = [None] * len(coordinates)  # faster than append
+    def _coordinates_to_magnitudes_orientation(cls, coordinates: ndarray) -> Tuple[List[float], List[Tuple[float, float]]]:
+        mags = [0] * len(coordinates)  # faster than append
+        orient = [(0, 0)] * len(coordinates)  # faster than append
         i = 0  # faster than enumerate
         for coord in coordinates:
-            coord = list(coord)
-            ax = atan2(sqrt(coord[1] ** 2 + coord[2] ** 2), coord[0]) * 180 / pi
-            az = atan2(coord[2], sqrt(coord[1] ** 2 + coord[0] ** 2)) * 180 / pi
-            orient[i] = (ax, az)
-
-            coord = np.asarray(coord)
-            mags[i] = np.sqrt(coord.dot(coord))
+            if len(coord) == 3:
+                ax = atan2(sqrt(coord[1] ** 2 + coord[2] ** 2), coord[0]) * 180 / pi
+                az = atan2(coord[2], sqrt(coord[1] ** 2 + coord[0] ** 2)) * 180 / pi
+                orient[i] = (ax, az)
+                mags[i] = np.sqrt(coord.dot(coord))
             i += 1
         return mags, orient
 

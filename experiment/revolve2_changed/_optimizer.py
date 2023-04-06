@@ -88,6 +88,7 @@ class EAOptimizer(Process, Generic[Genotype, Fitness, Novelty]):
             population: List[Genotype],
             fitnesses: List[Fitness],
             novelty: List[Novelty],
+            novelty_weight: float | None,
             num_parent_groups: int,
     ) -> List[List[int]]:
         """
@@ -396,7 +397,7 @@ class EAOptimizer(Process, Generic[Genotype, Fitness, Novelty]):
 
         return True
 
-    async def run(self, novelty_search:bool) -> None:
+    async def run(self, novelty_search: bool, novelty_weight: float | None) -> None:
         """Run the optimizer."""
         # evaluate initial population if required
         self.__latest_novelty = await self.__safe_evaluate_generation_novelty(
@@ -429,7 +430,8 @@ class EAOptimizer(Process, Generic[Genotype, Fitness, Novelty]):
                     [i.genotype for i in self.__latest_population],
                     self.__latest_fitnesses,
                     self.__latest_novelty,
-                    self.__offspring_size,)
+                    self.__offspring_size,
+                    novelty_weight)
             else:
                 parent_selections = self.__safe_select_parents(
                     [i.genotype for i in self.__latest_population],
@@ -593,8 +595,9 @@ class EAOptimizer(Process, Generic[Genotype, Fitness, Novelty]):
         fitnesses: List[Fitness],
         novelty: List[Novelty],
         num_parent_groups: int,
+        novelty_weight: float | None,
     ) -> List[List[int]]:
-        parent_selections = self._select_parents_novelty(population, fitnesses, novelty, num_parent_groups)
+        parent_selections = self._select_parents_novelty(population, fitnesses, novelty, novelty_weight, num_parent_groups)
 
         assert type(parent_selections) == list
         assert len(parent_selections) == num_parent_groups

@@ -126,7 +126,7 @@ class CompareHistorgrams:
         return score
 
     @classmethod
-    def wasserstein_dist(cls, O: List[List[float]], E: List[List[float]]) -> float:
+    def wasserstein_dist(cls, O: ndarray, E: ndarray) -> float:
         """
         the wasserstein distance quantifies, how similar two distributions are.
         This implementation uses a INT_CASTER, to mitigate floating point calculation errors.
@@ -140,7 +140,6 @@ class CompareHistorgrams:
         :return: float value of novelty score
         """
 
-        O, E = np.asarray(O), np.asarray(E)
         assert O.shape == E.shape, f"Error: Histograms have different sizes -> O:{O.shape}, E:{E.shape}"
         assert round(O.sum()) == round(E.sum()) == 1., f"Error: Distributions  dont sum up to 1 -> O:{round(O.sum())}, E:{round(E.sum())}"
         xsize, ysize = O.shape

@@ -86,7 +86,7 @@ class EAPlots:
         ax.set_xlabel("Generations")
         ax.set_ylabel("Novelty")
         ax.plot(nvlts[["max", "mean", "min"]], label=["Max", "Mean", "Min"])
-        ax.violinplot(bxpl_data, positions=list(range(1,len(bxpl_data)+1)))
+        # ax.violinplot(bxpl_data, positions=list(range(1,len(bxpl_data)+1)))
         ax.legend()
         plt.show()
 

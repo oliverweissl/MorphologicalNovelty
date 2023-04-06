@@ -221,20 +221,21 @@ class Optimizer(EAOptimizer[Genotype, float, float]):
         population: List[Genotype],
         fitnesses: List[float],
         novelty: List[float],
+        novelty_weight: float | None,
         num_parent_groups: int,
     ) -> List[List[int]]:
+        fitnesses = self._normalize_list(fitnesses) if novelty_weight is not None else fitnesses
         return [
             multiple_unique(
                 2,
                 population,
                 fitnesses,
                 novelty,
-                lambda _, fitnesses, novelty: selection.novelty_tournament(self._rng, fitnesses, novelty, k=2),
+                lambda _, fitnesses, novelty: selection.novelty_tournament(self._rng, fitnesses, novelty, a=novelty_weight, k=2),
             )
             for _ in range(num_parent_groups)
         ]
 
-    # TODO:
     def _select_survivors(
         self,
         old_individuals: List[Genotype],
@@ -245,7 +246,7 @@ class Optimizer(EAOptimizer[Genotype, float, float]):
     ) -> Tuple[List[int], List[int]]:
         assert len(old_individuals) == num_survivors
 
-        return population_management.generational(
+        return population_management.steady_state(
             old_individuals,
             old_fitnesses,
             new_individuals,
@@ -348,6 +349,10 @@ class Optimizer(EAOptimizer[Genotype, float, float]):
                 num_generations=self._num_generations,
             )
         )
+
+    def _normalize_list(self, lst: List) -> List:
+        mx = max(lst)
+        return [x/mx for x in lst]
 
 
 DbBase = declarative_base()
