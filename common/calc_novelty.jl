@@ -5,57 +5,50 @@ functions:
 - Author: oliver weissl
 - Date: 2023-04-06
 =#
-function apply_noise_mask(hist, INT_CASTER::Int16)
-    xsize, ysize = size(hist)
-    diff::Int16 = INT_CASTER - sum(hist)
+function apply_noise_mask(hist, INT_CASTER::UInt)
+    diff::UInt = INT_CASTER - sum(hist)
 
-    mask = zeros(Int8, xsize*ysize)
+    mask = zeros(UInt, size(hist))
     mask = shuffle(replace(mask, 0=>1, count=diff))
-    mask = reshape(mask,(xsize, ysize)) # TODO: if diff > 400 assign 2s and 1s
     return hist + mask
 end
 
-function move_supply(supply, fcoord::CartesianIndex , capacity, tcoord::CartesianIndex, INT_CASTER::Int16)
+function move_supply(supply, fcoord::CartesianIndex , capacity, tcoord::CartesianIndex, INT_CASTER::UInt)
     if supply[fcoord] <= capacity[tcoord]
         flow = supply[fcoord]
         capacity[tcoord] -= flow
-        supply[fcoord]::Int8 = 0
+        supply[fcoord]= 0
     else
         flow = capacity[tcoord]
         supply[fcoord] -= flow
-        capacity[tcoord]::Int8 = 0
+        capacity[tcoord] = 0
     end
     distance = sqrt(abs(fcoord[1]-tcoord[1])^2 + abs(fcoord[2]-tcoord[2])^2)
     score = flow/INT_CASTER*distance
     return score, supply, capacity
 end
 
-function wasserstein_distance(hist0, hist1, INT_CASTER::Int16)::Float16
-    xsize, ysize = size(hist0)
-
-    supply, capacity = floor.(Int16, copy(hist0)*INT_CASTER), floor.(Int16, copy(hist1)*INT_CASTER)
+function wasserstein_distance(hist0, hist1, INT_CASTER::UInt)::Float16
+    supply, capacity = trunc.(UInt, hist0.*INT_CASTER), trunc.(UInt, hist1.*INT_CASTER)
     supply, capacity = apply_noise_mask(supply, INT_CASTER), apply_noise_mask(capacity, INT_CASTER)
 
-    score = 0
+    score::Float16 = 0
     while true
-        from_idx = findfirst(supply .> 0)
-        to_idx = findfirst(capacity .> 0)
+        from_idx, to_idx = findfirst(supply .> 0), findfirst(capacity .> 0)
 
         if (from_idx == nothing) || (to_idx == nothing)
-            break
+            return score
         end
-
         work, supply, capacity = move_supply(supply, from_idx, capacity, to_idx, INT_CASTER)
         score += work
     end
-    return score
 end
 
 function calculate_novelty(histograms)
-    INT_CASTER::Int16 = 10000
-    amt_instances::Int8 = length(histograms) # population = 100 -> int8 goes until 127
+    INT_CASTER::UInt = 10000
+    amt_instances::UInt = length(histograms) # population = 100 -> int8 goes until 127
 
-    novelty_scores = zeros(amt_instances)
+    novelty_scores = zeros(Float16, amt_instances)
     for i = 1:amt_instances-1
         for j = 1+i:amt_instances
             score = wasserstein_distance(histograms[i], histograms[j], INT_CASTER)
@@ -64,4 +57,11 @@ function calculate_novelty(histograms)
         end
     end
     return novelty_scores
+end
+
+function get_novelties(bricks, hinges)
+    # ~15 to 20 sec --> 2x time save!!!
+    t1 = Threads.@spawn calculate_novelty(bricks)
+    t2 = Threads.@spawn calculate_novelty(hinges)
+    return fetch(t1), fetch(t2)
 end

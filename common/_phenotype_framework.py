@@ -2,21 +2,22 @@ from __future__ import annotations
 
 import numpy as np
 
+from numpy import ndarray
 from multineat import Genome
 from typing import List, Tuple
 from math import atan2, pi, sqrt
 
-from numpy import ndarray
-
-from .compare_histograms import CompareHistorgrams as ch
+from ._compare_histograms import CompareHistorgrams as ch
 from revolve2.genotypes.cppnwin._genotype import Genotype
 from revolve2.core.modular_robot import Body, Brick, ActiveHinge
 from revolve2.genotypes.cppnwin.modular_robot.body_genotype_v1 import develop_v1
 
 
+import os
+os.environ["JULIA_NUM_THREADS"] = "2"
 from julia.api import Julia
 jl = Julia(compiled_modules=False)
-from julia import Main
+from julia import Main  # will always be marked due to IDE error
 jl.eval('include("common/calc_novelty.jl")')
 
 
@@ -58,8 +59,7 @@ class PhenotypeFramework:
             i += 1
 
         # This takes most computation -> in python: ~ 63 sec, julia: ~ 34 sec
-        brick_novelty_scores, hinge_novelty_scores = Main.calculate_novelty(brick_hists), Main.calculate_novelty(hinge_hists)
-
+        brick_novelty_scores, hinge_novelty_scores = Main.get_novelties(brick_hists, hinge_hists)
         novelty_scores = [float((b_score + h_score) / 2)
                           for b_score, h_score in zip(brick_novelty_scores, hinge_novelty_scores)]
         mscore = max(novelty_scores)

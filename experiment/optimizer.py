@@ -34,7 +34,7 @@ from sqlalchemy.future import select
 
 from .revolve2_changed import multiple_unique
 from .revolve2_changed import EAOptimizer
-from common.phenotype_framework import PhenotypeFramework as PF
+from common import PhenotypeFramework as PF
 
 
 class Optimizer(EAOptimizer[Genotype, float, float]):
@@ -193,28 +193,10 @@ class Optimizer(EAOptimizer[Genotype, float, float]):
         self._innov_db_body.Deserialize(opt_row.innov_db_body)
         self._innov_db_brain = innov_db_brain
         self._innov_db_brain.Deserialize(opt_row.innov_db_brain)
-
         return True
 
     def _init_runner(self) -> None:
         self._runner = LocalRunner(headless=True)
-
-    #TODO: randomness in parent selection -> not deterministic
-    def _select_parents(
-        self,
-        population: List[Genotype],
-        fitnesses: List[float],
-        num_parent_groups: int,
-    ) -> List[List[int]]:
-        return [
-            selection.multiple_unique(
-                2,
-                population,
-                fitnesses,
-                lambda _, fitnesses: selection.tournament(self._rng, fitnesses, k=2),
-            )
-            for _ in range(num_parent_groups)
-        ]
 
     def _select_parents_novelty(
         self,
