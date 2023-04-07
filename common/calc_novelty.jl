@@ -5,6 +5,15 @@ functions:
 - Author: oliver weissl
 - Date: 2023-04-06
 =#
+function find_first_candidate(arr)
+    for elem in CartesianIndices(arr)
+        if arr[elem] > 0
+            return elem
+        end
+    end
+    return nothing
+end
+
 function apply_noise_mask(hist, INT_CASTER::UInt)
     diff::UInt = INT_CASTER - sum(hist)
 
@@ -34,7 +43,7 @@ function wasserstein_distance(hist0, hist1, INT_CASTER::UInt)::Float16
 
     score::Float16 = 0
     while true
-        from_idx, to_idx = findfirst(supply .> 0), findfirst(capacity .> 0)
+        from_idx, to_idx = find_first_candidate(supply), find_first_candidate(capacity)
 
         if (from_idx == nothing) || (to_idx == nothing)
             return score
@@ -59,9 +68,12 @@ function calculate_novelty(histograms)
     return novelty_scores
 end
 
-function get_novelties(bricks, hinges)
-    # ~15 to 20 sec --> 2x time save!!!
-    t1 = Threads.@spawn calculate_novelty(bricks)
-    t2 = Threads.@spawn calculate_novelty(hinges)
-    return fetch(t1), fetch(t2)
+function get_novelties(bricks::Vector{Matrix{Float64}}, hinges::Vector{Matrix{Float64}})
+    # ~ 1-1.5 sec
+    @time begin
+        t1 = Threads.@spawn calculate_novelty(bricks)
+        t2 = Threads.@spawn calculate_novelty(hinges)
+        y1, y2 = fetch(t1), fetch(t2)
+    end
+    return y1, y2
 end
