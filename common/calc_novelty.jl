@@ -42,7 +42,7 @@ function move_supply!(supply, capacity, fcoord::CartesianIndex, tcoord::Cartesia
 end
 
 function wasserstein_distance(hist0, hist1, INT_CASTER)
-    supply, capacity = deepcopy(hist0), deepcopy(hist1)
+    supply, capacity = copy(hist0), copy(hist1)  # only use copy when arr of int or float
     score = 0
     while true
         from_idx, to_idx = find_first_candidate(supply), find_first_candidate(capacity)

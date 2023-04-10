@@ -8,8 +8,6 @@ from typing import List, Tuple
 
 import multineat
 import revolve2.core.optimization.ea.generic_ea.population_management as population_management
-
-from revolve2_changed import novelty_tournament
 import revolve2.core.optimization.ea.generic_ea.selection as selection
 import sqlalchemy
 
@@ -34,8 +32,9 @@ from sqlalchemy.ext.asyncio.session import AsyncSession
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.future import select
 
-from .revolve2_changed import multiple_unique
-from .revolve2_changed import EAOptimizer
+from .revolve2_changed import multiple_unique, EAOptimizer, novelty_tournament
+
+
 from common import PhenotypeFramework as PF
 
 
