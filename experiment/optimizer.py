@@ -2,12 +2,14 @@
 import logging
 import math
 import pickle
+
 from random import Random
 from typing import List, Tuple
 
 import multineat
 import revolve2.core.optimization.ea.generic_ea.population_management as population_management
 
+from revolve2_changed import novelty_tournament
 import revolve2.core.optimization.ea.generic_ea.selection as selection
 import sqlalchemy
 
@@ -213,7 +215,7 @@ class Optimizer(EAOptimizer[Genotype, float, float]):
                 population,
                 fitnesses,
                 novelty,
-                lambda _, fitnesses, novelty: selection.novelty_tournament(self._rng, fitnesses, novelty, a=novelty_weight, k=2),
+                lambda _, fitnesses, novelty: novelty_tournament(self._rng, fitnesses, novelty, a=novelty_weight, k=2),
             )
             for _ in range(num_parent_groups)
         ]

@@ -1,12 +1,12 @@
 using Shuffle
 #=
 functions:
-- Julia version: 
+- Julia version: 1.8
 - Author: oliver weissl
 - Date: 2023-04-06
 =#
 function find_first_candidate(arr)
-    for elem in CartesianIndices(arr)
+    @inbounds for elem in CartesianIndices(arr)
         if arr[elem] > 0
             return elem
         end
@@ -14,15 +14,19 @@ function find_first_candidate(arr)
     return nothing
 end
 
-function apply_noise_mask(hist, INT_CASTER::UInt)
-    diff::UInt = INT_CASTER - sum(hist)
+function prepare_histograms!(hist, INT_CASTER)
+    hist = floor.(UInt64,hist.*INT_CASTER)
+    diff = INT_CASTER - sum(hist)
 
-    mask = zeros(UInt, size(hist))
-    mask = shuffle(replace(mask, 0=>1, count=diff))
-    return hist + mask
+    mask = zeros(UInt64, size(hist))
+    mask[1:diff] .= 1
+    shuffle!(mask)
+    hist .+= mask
+    return hist
 end
 
-function move_supply(supply, fcoord::CartesianIndex , capacity, tcoord::CartesianIndex, INT_CASTER::UInt)
+
+function move_supply!(supply, capacity, fcoord::CartesianIndex, tcoord::CartesianIndex, INT_CASTER)
     if supply[fcoord] <= capacity[tcoord]
         flow = supply[fcoord]
         capacity[tcoord] -= flow
@@ -34,32 +38,31 @@ function move_supply(supply, fcoord::CartesianIndex , capacity, tcoord::Cartesia
     end
     distance = sqrt(abs(fcoord[1]-tcoord[1])^2 + abs(fcoord[2]-tcoord[2])^2)
     score = flow/INT_CASTER*distance
-    return score, supply, capacity
+    return score
 end
 
-function wasserstein_distance(hist0, hist1, INT_CASTER::UInt)::Float16
-    supply, capacity = trunc.(UInt, hist0.*INT_CASTER), trunc.(UInt, hist1.*INT_CASTER)
-    supply, capacity = apply_noise_mask(supply, INT_CASTER), apply_noise_mask(capacity, INT_CASTER)
-
-    score::Float16 = 0
+function wasserstein_distance(hist0, hist1, INT_CASTER)
+    supply, capacity = deepcopy(hist0), deepcopy(hist1)
+    score = 0
     while true
         from_idx, to_idx = find_first_candidate(supply), find_first_candidate(capacity)
 
         if (from_idx == nothing) || (to_idx == nothing)
             return score
         end
-        work, supply, capacity = move_supply(supply, from_idx, capacity, to_idx, INT_CASTER)
+        work = move_supply!(supply, capacity, from_idx, to_idx, INT_CASTER)
         score += work
     end
 end
 
 function calculate_novelty(histograms)
-    INT_CASTER::UInt = 10000
-    amt_instances::UInt = length(histograms) # population = 100 -> int8 goes until 127
+    INT_CASTER::UInt64 = 10000
+    amt_instances::UInt64 = length(histograms)
 
-    novelty_scores = zeros(Float16, amt_instances)
-    for i = 1:amt_instances-1
-        for j = 1+i:amt_instances
+    prepare_histograms!.(histograms, INT_CASTER)
+    novelty_scores = zeros(Float64, amt_instances)
+    @inbounds for i = 1:amt_instances-1
+        @inbounds for j = 1+i:amt_instances
             score = wasserstein_distance(histograms[i], histograms[j], INT_CASTER)
             novelty_scores[i] += score
             novelty_scores[j] += score

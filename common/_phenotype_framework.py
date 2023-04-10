@@ -41,7 +41,7 @@ class PhenotypeFramework:
         :return: List[float] novelty rate per individual
         """
         amt_instances = len(genotypes)
-        bodies = [develop_v1(genotype) for genotype in genotypes] # db only returns Genotypes, can be swithced to str using cls.deserialize()
+        bodies = [develop_v1(genotype) for genotype in genotypes]  # db only returns Genotypes, can be swithced to str using cls.deserialize()
 
 
         coords = [cls._coordinates_pca_change_basis(cls._body_to_sorted_coordinates(body)) for body in bodies]  # PCA change of basis -> orientation of variance/ covariance
@@ -110,11 +110,9 @@ class PhenotypeFramework:
 
         if len(all_coords) > 1: # covariance only works with n > 1 points
             covariance_matrix = np.cov(all_coords.T)
-            eigen_values, eigen_vectors = np.linalg.eig(
-                np.dot(covariance_matrix,
-                       covariance_matrix.T)/(len(all_coords)-1)) # eigenvalues, eigenvectors
+            eigen_values, eigen_vectors = np.linalg.eig(covariance_matrix)  # eigenvalues, eigenvectors
 
-            srt = np.argsort(-eigen_values) # sorting axis, x-axis: biggest variance, y-axis second biggest, z-axis:smallest
+            srt = np.argsort(-eigen_values)  # sorting axis, x-axis: biggest variance, y-axis second biggest, z-axis:smallest
             inv_sorted_vectors = np.linalg.inv(eigen_vectors[srt].T)
 
             bricks = np.dot(inv_sorted_vectors, bricks.T).T if len(bricks) > 0 else bricks

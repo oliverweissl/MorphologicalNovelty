@@ -74,17 +74,17 @@ class EAPlots:
 
         nvlt = (
             df[["generation_index", "value"]]
-            .groupby(by="generation_index"))
+            .groupby(by="generation_index")
+            .describe()["value"])
 
-        nvlts = nvlt.describe()["value"]
-        bxpl_data = [n["value"].values for _, n in nvlt]
+        # bxpl_data = [n["value"].values for _, n in nvlt]
 
         fig, ax = plt.subplots(1, 1, figsize=(5, 5))
         fig.suptitle("Novelty Score")
 
         ax.set_xlabel("Generations")
         ax.set_ylabel("Novelty")
-        ax.plot(nvlts[["max", "mean", "min"]], label=["Max", "Mean", "Min"])
+        ax.plot(nvlt[["max", "mean", "min"]], label=["Max", "Mean", "Min"])
         # ax.violinplot(bxpl_data, positions=list(range(1,len(bxpl_data)+1)))
         ax.legend()
         plt.show()
