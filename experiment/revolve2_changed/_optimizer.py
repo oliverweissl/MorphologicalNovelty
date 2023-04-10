@@ -67,22 +67,6 @@ class EAOptimizer(Process, Generic[Genotype, Fitness, Novelty]):
         """
 
     @abstractmethod
-    def _select_parents(
-        self,
-        population: List[Genotype],
-        fitnesses: List[Fitness],
-        num_parent_groups: int,
-    ) -> List[List[int]]:
-        """
-        Select groups of parents that will create offspring.
-
-        :param population: The generation to select sets of parents from. Must not be altered.
-        :param fitnesses: Fitnesses of the population.
-        :param num_parent_groups: Number of groups to create.
-        :returns: The selected sets of parents, each integer representing a population index.
-        """
-
-    @abstractmethod
     def _select_parents_novelty(
             self,
             population: List[Genotype],
@@ -224,6 +208,7 @@ class EAOptimizer(Process, Generic[Genotype, Fitness, Novelty]):
         self.__next_individual_id = 0
         self.__latest_fitnesses = None
         self.__generation_index = 0
+        self.__latest_novelty = None
 
         self.__latest_population = [
             _Individual(self.__gen_next_individual_id(), g, [])
@@ -387,23 +372,29 @@ class EAOptimizer(Process, Generic[Genotype, Fitness, Novelty]):
 
         if self.__generation_index == 0:
             self.__latest_fitnesses = None
+            self.__latest_novelty = None
         else:
             fitness_ids = [individual_map[id].fitness_id for id in individual_ids]
+            novelty_ids = [individual_map[id].novelty_id for id in individual_ids]
             fitnesses = await self.__fitness_serializer.from_database(
                 session, fitness_ids
             )
-            assert len(fitnesses) == len(fitness_ids)
+            novelties = await self.__novelty_serializer.from_database(
+                session, novelty_ids
+            )
+            assert len(fitnesses) == len(fitness_ids) == len(novelties)
             self.__latest_fitnesses = fitnesses
-
+            self.__latest_novelty = novelties
         return True
 
-    async def run(self, novelty_search: bool, novelty_weight: float | None) -> None:
+    async def run(self,novelty_weight: float | None) -> None:
         """Run the optimizer."""
         # evaluate initial population if required
-        self.__latest_novelty = await self.__safe_evaluate_generation_novelty(
-            [i.genotype for i in self.__latest_population],
-            self.__database,
-            self.__db_id.branch(f"evaluate{self.__generation_index}"),)
+        if self.__latest_novelty is None:
+            self.__latest_novelty = await self.__safe_evaluate_generation_novelty(
+                [i.genotype for i in self.__latest_population],
+                self.__database,
+                self.__db_id.branch(f"evaluate{self.__generation_index}"),)
 
 
         if self.__latest_fitnesses is None:
@@ -425,18 +416,13 @@ class EAOptimizer(Process, Generic[Genotype, Fitness, Novelty]):
 
         while self.__safe_must_do_next_gen():
             # let user select parents
-            if novelty_search:
-                parent_selections = self.__safe_select_parents_novelty(
-                    [i.genotype for i in self.__latest_population],
-                    self.__latest_fitnesses,
-                    self.__latest_novelty,
-                    self.__offspring_size,
-                    novelty_weight)
-            else:
-                parent_selections = self.__safe_select_parents(
-                    [i.genotype for i in self.__latest_population],
-                    self.__latest_fitnesses,
-                    self.__offspring_size,)
+
+            parent_selections = self.__safe_select_parents_novelty(
+                [i.genotype for i in self.__latest_population],
+                self.__latest_fitnesses,
+                self.__latest_novelty,
+                self.__offspring_size,
+                novelty_weight)
 
             # let user create offspring
             offspring = [
@@ -569,25 +555,6 @@ class EAOptimizer(Process, Generic[Genotype, Fitness, Novelty]):
         assert len(novelty) == len(genotypes)
         assert all(type(e) == self.__fitness_type for e in novelty)
         return novelty
-
-    def __safe_select_parents(
-        self,
-        population: List[Genotype],
-        fitnesses: List[Fitness],
-        num_parent_groups: int,
-    ) -> List[List[int]]:
-        parent_selections = self._select_parents(population, fitnesses, num_parent_groups)
-
-        assert type(parent_selections) == list
-        assert len(parent_selections) == num_parent_groups
-        assert all(type(s) == list for s in parent_selections)
-        assert all(
-            [
-                all(type(p) == int and p >= 0 and p < len(population) for p in s)
-                for s in parent_selections
-            ]
-        )
-        return parent_selections
 
     def __safe_select_parents_novelty(
         self,

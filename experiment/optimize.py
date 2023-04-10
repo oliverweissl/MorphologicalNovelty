@@ -12,7 +12,7 @@ from revolve2.core.database import open_async_database_sqlite
 from revolve2.core.optimization import DbId
 
 
-async def main(novelty_search: bool = True, novelty_weight: float = None) -> None:
+async def main(novelty_weight: float = None) -> None:
     """Run the optimization process."""
     # number of initial mutations for body and brain CPPNWIN networks
     NUM_INITIAL_MUTATIONS = 10
@@ -30,7 +30,7 @@ async def main(novelty_search: bool = True, novelty_weight: float = None) -> Non
         level=logging.INFO,
         format="[%(asctime)s] [%(levelname)s] [%(module)s] %(message)s",
     )
-
+    start = time.time()
     logging.info("Starting optimization")
 
     # random number generator
@@ -39,7 +39,7 @@ async def main(novelty_search: bool = True, novelty_weight: float = None) -> Non
 
     # database
     tme = time.strftime("[%H-%M-%S]", time.localtime())
-    db_str = f"/media/oliver/DC7282EC7282CB2A/Users/olive/Desktop/thesis/experiments/db_n_{novelty_weight}_{tme}" if novelty_search else f"/media/oliver/DC7282EC7282CB2A/Users/olive/Desktop/thesis/experiments/db_{tme}"
+    db_str = f"/media/oliver/DC7282EC7282CB2A/Users/olive/Desktop/thesis/experiments/db_n_{novelty_weight}_{tme}"
     database = open_async_database_sqlite(db_str, create=True)
 
     # unique database identifier for optimizer
@@ -80,10 +80,10 @@ async def main(novelty_search: bool = True, novelty_weight: float = None) -> Non
 
     logging.info("Starting optimization process..")
 
-    await optimizer.run(novelty_search=novelty_search, novelty_weight=novelty_weight)
+    await optimizer.run(novelty_weight=novelty_weight)
 
     logging.info("Finished optimizing.")
-
+    print(f"Finnished in: {time.time()-start}")
 
 if __name__ == "__main__":
     import asyncio

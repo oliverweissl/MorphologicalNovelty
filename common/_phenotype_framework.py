@@ -2,20 +2,26 @@ from __future__ import annotations
 
 import numpy as np
 
+from numpy import ndarray
 from multineat import Genome
 from typing import List, Tuple
 from math import atan2, pi, sqrt
 
-from numpy import ndarray
-
-from .compare_histograms import CompareHistorgrams as ch
+from ._compare_histograms import CompareHistorgrams as ch
 from revolve2.genotypes.cppnwin._genotype import Genotype
-from revolve2.core.modular_robot import Body, ActiveHinge, Brick
+from revolve2.core.modular_robot import Body, Brick, ActiveHinge
 from revolve2.genotypes.cppnwin.modular_robot.body_genotype_v1 import develop_v1
 
 
-class PhenotypeFramework:
+import os
+os.environ["JULIA_NUM_THREADS"] = "2"
+from julia.api import Julia
+jl = Julia(compiled_modules=False)
+from julia import Main  # will always be marked due to IDE error
+jl.eval('include("common/calc_novelty.jl")')
 
+
+class PhenotypeFramework:
     @classmethod
     def get_bricks_hinges_amount(cls, genotype: Genotype | str) -> (int, int):
         assert isinstance(genotype, (Genotype, str)), f"Error: Genotype is of type {type(genotype)}, Genotype or str expected!"
@@ -26,7 +32,7 @@ class PhenotypeFramework:
         return len(bricks), len(hinges)
 
     @classmethod
-    def get_novelty_population(cls, genotypes: List[Genotype | str]) -> List[float]:
+    def get_novelty_population(cls, genotypes: List[Genotype]) -> List[float]:
         """
         calculates novelty across population.
         :param genotypes: List[Genotype | str] --> list of genotypes for population.
@@ -35,12 +41,10 @@ class PhenotypeFramework:
         :return: List[float] novelty rate per individual
         """
         amt_instances = len(genotypes)
+        bodies = [develop_v1(genotype) for genotype in genotypes]  # db only returns Genotypes, can be swithced to str using cls.deserialize()
 
-        genotypes = [genotype if not isinstance(genotype, str) else cls.deserialize(genotype) for genotype in genotypes]
-        bodies = [develop_v1(genotype) for genotype in genotypes]
 
-        coords = [cls._body_to_sorted_coordinates(body) for body in bodies]
-        coords = [cls._coordinates_pca_change_basis(coord) for coord in coords] # PCA change of basis -> orientation of variance/ covariance
+        coords = [cls._coordinates_pca_change_basis(cls._body_to_sorted_coordinates(body)) for body in bodies]  # PCA change of basis -> orientation of variance/ covariance
 
         brick_hists, hinge_hists = [None] * amt_instances, [None] * amt_instances
         i = 0
@@ -54,24 +58,12 @@ class PhenotypeFramework:
                                                          orientations=hinge_orient)
             i += 1
 
-        brick_novelty_scores = [0] * amt_instances
-        hinge_novelty_scores = [0] * amt_instances
-        for i in range(amt_instances - 1):
-            for j in range(i + 1, amt_instances):
-                brick_score = cls._compare_hist(brick_hists[i], brick_hists[j])
-                brick_novelty_scores[i] += brick_score
-                brick_novelty_scores[j] += brick_score
-
-                hinge_score = cls._compare_hist(hinge_hists[i], hinge_hists[j])
-                hinge_novelty_scores[i] += hinge_score
-                hinge_novelty_scores[j] += hinge_score
-
-
-        novelty_scores = [(b_score + h_score) / 2
+        # This takes most computation -> in python: ~ 63 sec, julia: ~ 34 sec
+        brick_novelty_scores, hinge_novelty_scores = Main.get_novelties(brick_hists, hinge_hists)
+        novelty_scores = [float((b_score + h_score) / 2)
                           for b_score, h_score in zip(brick_novelty_scores, hinge_novelty_scores)]
-
         mscore = max(novelty_scores)
-        novelty_scores = [score/mscore if score > 0. else 0. for score in novelty_scores]
+        novelty_scores = [score/mscore for score in novelty_scores] # if score > 0. else 0.
         # scaling because the min novelty is 0 in theory --> some populations can have no duplicates therefore no 0s
         return novelty_scores
 
@@ -88,24 +80,21 @@ class PhenotypeFramework:
 
     @classmethod
     def _body_to_sorted_coordinates(cls, body: Body) -> (ndarray, ndarray):
-        """
-        Generates coordinates from Body object. All resulting coordinates are normalized to (0,0,0)
-        --> core is forced to the origin.
-
-        :param body:
-        :return: coordinates of bricks, coordinates of hinges --> (x,y,z)
-        """
         body_arr, core_pos = body.to_grid()
         body_arr = np.asarray(body_arr)
 
-        bricks, hinges = [], []
+        x, y, z = body_arr.shape
 
-        it = np.nditer(body_arr, flags=["multi_index", "refs_ok"])  # wow this is fast
-        for elem in it:
-            if isinstance(elem, ActiveHinge):
-                hinges.append(list(np.subtract(it.multi_index, core_pos)))
-            elif isinstance(elem, Brick):
-                bricks.append(list(np.subtract(it.multi_index, core_pos)))
+        bricks, hinges = [], []
+        for xe in range(x):
+            for ye in range(y):
+                for ze in range(z):
+                    elem = body_arr[xe][ye][ze]
+                    if isinstance(elem, ActiveHinge):
+                        hinges.append(np.subtract((xe, ye, ze), core_pos))
+                    elif isinstance(elem, Brick):
+                        bricks.append(np.subtract((xe, ye, ze), core_pos))
+
         bricks, hinges = np.asarray(bricks), np.asarray(hinges)
         return bricks, hinges
 
@@ -115,18 +104,15 @@ class PhenotypeFramework:
 
         all_coords = np.copy(hinges)
         if bricks.size and hinges.size:
-            all_coords = np.concatenate(bricks, hinges)
+            all_coords = np.concatenate(coords)
         elif bricks.size:
             all_coords = np.copy(bricks)
 
         if len(all_coords) > 1: # covariance only works with n > 1 points
-            #all_coords = np.asarray(all_coords.T)
             covariance_matrix = np.cov(all_coords.T)
-            eigen_values, eigen_vectors = np.linalg.eig(
-                np.dot(covariance_matrix,
-                       covariance_matrix.T)/(len(all_coords)-1)) # eigenvalues, eigenvectors
+            eigen_values, eigen_vectors = np.linalg.eig(covariance_matrix)  # eigenvalues, eigenvectors
 
-            srt = np.argsort(-eigen_values) # sorting axis, x-axis: biggest variance, y-axis second biggest, z-axis:smallest
+            srt = np.argsort(-eigen_values)  # sorting axis, x-axis: biggest variance, y-axis second biggest, z-axis:smallest
             inv_sorted_vectors = np.linalg.inv(eigen_vectors[srt].T)
 
             bricks = np.dot(inv_sorted_vectors, bricks.T).T if len(bricks) > 0 else bricks
@@ -149,14 +135,6 @@ class PhenotypeFramework:
 
     @classmethod
     def _gen_gradient_histogram(cls, magnitudes: List[float], orientations: List[Tuple[float, float]], num_bins: int = 20) -> ndarray:
-        """
-        Generates a 2D-Historgram of oriented gradients, using bins to standardize feature size. Can be normalized in various ways to make it comparable.
-        :param magnitudes: Magnitudes List[float]
-        :param orientations: Rotations List[Tuple[float,float]] -> tuple (rotation_x, rotation:z)
-        :param normalization: None -> no normalization | "clipping" -> between 0,1 | "log" -> log of x
-        :param num_bins: Number of bins to divide --> the higher the more detail
-        :return:
-        """
 
         bin_size = int(360 / num_bins)
         assert bin_size == 360 / num_bins, "Error: num_bins has to be a divisor of 360"
@@ -175,12 +153,7 @@ class PhenotypeFramework:
 
     @staticmethod
     def _wasserstein_softmax(arr: ndarray) -> ndarray:
-        """
-        softmax adjusted to handle empty histograms for wasserstein distance measure.
-        Adds small bias to all bins -> non empty hist
-        :param arr: histogram NxN
-        :return:
-        """
+
         arr += (1/arr.size)
         norm = np.true_divide(arr, arr.sum())
         return norm

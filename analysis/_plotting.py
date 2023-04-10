@@ -2,14 +2,11 @@ import argparse
 from typing import Tuple
 
 import matplotlib.pyplot as plt
-import pandas as pd
 
 from numpy import std
-from common.phenotype_framework import PhenotypeFramework as pf
-from common.phenotype_framework import PhenotypeFramework
+from common import PhenotypeFramework as pf
 from revolve2.core.optimization import DbId
-from _load_db import load_db
-
+from ._load_db import load_db
 
 
 class EAPlots:
@@ -18,6 +15,7 @@ class EAPlots:
         vmin = min(lst)
         vmax = max(lst)
         return [(x - vmin) / (vmax - vmin) for x in lst]
+
 
     @classmethod
     def plot_bricks_hinges(cls, database: str, db_id: DbId = DbId("optmodular"), *_) -> None:
@@ -30,7 +28,7 @@ class EAPlots:
 
         df = load_db(database, db_id)
 
-        df["bricks"], df["hinges"] = zip(*df.serialized_multineat_genome.apply(PhenotypeFramework.get_bricks_hinges_amount))
+        df["bricks"], df["hinges"] = zip(*df.serialized_multineat_genome.apply(pf.get_bricks_hinges_amount))
 
         # calculate max min avg
         hngs = (
@@ -62,6 +60,7 @@ class EAPlots:
 
         plt.show()
 
+
     @classmethod
     def plot_novelty_from_db(cls, database: str, db_id: DbId = DbId("optmodular"), *_) -> None:
         """
@@ -75,20 +74,22 @@ class EAPlots:
 
         nvlt = (
             df[["generation_index", "value"]]
-            .groupby(by="generation_index"))
+            .groupby(by="generation_index")
+            .describe()["value"])
 
-        nvlts = nvlt.describe()["value"]
-        bxpl_data = [n["value"].values for _, n in nvlt]
+        # bxpl_data = [n["value"].values for _, n in nvlt]
 
         fig, ax = plt.subplots(1, 1, figsize=(5, 5))
         fig.suptitle("Novelty Score")
 
         ax.set_xlabel("Generations")
         ax.set_ylabel("Novelty")
-        ax.plot(nvlts[["max", "mean", "min"]], label=["Max", "Mean", "Min"])
+        ax.plot(nvlt[["max", "mean", "min"]], label=["Max", "Mean", "Min"])
         # ax.violinplot(bxpl_data, positions=list(range(1,len(bxpl_data)+1)))
         ax.legend()
         plt.show()
+
+
 
     @classmethod
     def plot_novelty(cls,
@@ -160,7 +161,8 @@ def main() -> None:
     args = parser.parse_args()
 
     {"bricks_hinges": EAPlots.plot_bricks_hinges,
-     "novelty": EAPlots.plot_novelty}[args.plot](args.database, DbId(args.db_id), args.test)
+     "novelty": EAPlots.plot_novelty,
+     "novelty_db": EAPlots.plot_novelty_from_db}[args.plot](args.database, DbId(args.db_id), args.test)
 
 
 

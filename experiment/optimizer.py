@@ -2,12 +2,12 @@
 import logging
 import math
 import pickle
+
 from random import Random
 from typing import List, Tuple
 
 import multineat
 import revolve2.core.optimization.ea.generic_ea.population_management as population_management
-
 import revolve2.core.optimization.ea.generic_ea.selection as selection
 import sqlalchemy
 
@@ -32,9 +32,10 @@ from sqlalchemy.ext.asyncio.session import AsyncSession
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.future import select
 
-from .revolve2_changed import multiple_unique
-from .revolve2_changed import EAOptimizer
-from common.phenotype_framework import PhenotypeFramework as PF
+from .revolve2_changed import multiple_unique, EAOptimizer, novelty_tournament
+
+
+from common import PhenotypeFramework as PF
 
 
 class Optimizer(EAOptimizer[Genotype, float, float]):
@@ -193,28 +194,10 @@ class Optimizer(EAOptimizer[Genotype, float, float]):
         self._innov_db_body.Deserialize(opt_row.innov_db_body)
         self._innov_db_brain = innov_db_brain
         self._innov_db_brain.Deserialize(opt_row.innov_db_brain)
-
         return True
 
     def _init_runner(self) -> None:
         self._runner = LocalRunner(headless=True)
-
-    #TODO: randomness in parent selection -> not deterministic
-    def _select_parents(
-        self,
-        population: List[Genotype],
-        fitnesses: List[float],
-        num_parent_groups: int,
-    ) -> List[List[int]]:
-        return [
-            selection.multiple_unique(
-                2,
-                population,
-                fitnesses,
-                lambda _, fitnesses: selection.tournament(self._rng, fitnesses, k=2),
-            )
-            for _ in range(num_parent_groups)
-        ]
 
     def _select_parents_novelty(
         self,
@@ -231,7 +214,7 @@ class Optimizer(EAOptimizer[Genotype, float, float]):
                 population,
                 fitnesses,
                 novelty,
-                lambda _, fitnesses, novelty: selection.novelty_tournament(self._rng, fitnesses, novelty, a=novelty_weight, k=2),
+                lambda _, fitnesses, novelty: novelty_tournament(self._rng, fitnesses, novelty, a=novelty_weight, k=2),
             )
             for _ in range(num_parent_groups)
         ]
