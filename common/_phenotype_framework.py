@@ -13,7 +13,7 @@ from revolve2.genotypes.cppnwin._genotype import Genotype
 from revolve2.core.modular_robot import Body, Brick, ActiveHinge
 from revolve2.genotypes.cppnwin.modular_robot.body_genotype_v1 import develop_v1
 
-os.environ["JULIA_NUM_THREADS"] = "2"
+#os.environ["JULIA_NUM_THREADS"] = "2"
 from julia.api import Julia
 jl = Julia(compiled_modules=False)
 from julia import Main  # will always be marked due to IDE error
