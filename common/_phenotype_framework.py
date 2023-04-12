@@ -96,23 +96,24 @@ class PhenotypeFramework:
 
             srt = np.argsort(eigen_values)  # sorting axis, x-axis: biggest variance, y-axis second biggest, z-axis:smallest
             coords = np.linalg.solve(eigen_vectors[srt].T, coords[srt]).T"""
-        covariance_matrix = np.cov(coords.T)
-        eigen_values, eigen_vectors = np.linalg.eig(covariance_matrix)
+        if len(coords) > 1:
+            covariance_matrix = np.cov(coords.T)
+            eigen_values, eigen_vectors = np.linalg.eig(covariance_matrix)
 
-        srt = np.argsort(eigen_values)[::-1]  # sorting axis, x-axis: biggest variance, y-axis second biggest, z-axis:smallest
-        rot_rad = np.radians(180)
-        for i in range(len(srt)):
-            while True:
-                if srt[i] == i:
-                    break
-                cand = srt[i]
-                rotation = R.from_rotvec(rot_rad * eigen_vectors[cand])
-                coords = rotation.apply(coords)
+            srt = np.argsort(eigen_values)[::-1]  # sorting axis, x-axis: biggest variance, y-axis second biggest, z-axis:smallest
+            rot_rad = np.radians(180)
+            for i in range(len(srt)):
+                while True:
+                    if srt[i] == i:
+                        break
+                    cand = srt[i]
+                    rotation = R.from_rotvec(rot_rad * eigen_vectors[cand])
+                    coords = rotation.apply(coords)
 
-                eigen_vectors[i], eigen_vectors[cand] = np.copy(eigen_vectors[cand]), np.copy(eigen_vectors[i])
-                srt[[i, cand]] = srt[[cand, i]]
+                    eigen_vectors[i], eigen_vectors[cand] = np.copy(eigen_vectors[cand]), np.copy(eigen_vectors[i])
+                    srt[[i, cand]] = srt[[cand, i]]
 
-        coords = np.linalg.inv(eigen_vectors).dot(coords.T)
+            coords = np.linalg.inv(eigen_vectors).dot(coords.T)
         return coords.T
 
     @classmethod
