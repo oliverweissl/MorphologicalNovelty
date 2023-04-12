@@ -5,7 +5,7 @@
 - Install Revolve2 -> https://ci-group.github.io/revolve2/installation/index.html
 - Install Julia 1.8
 - pip install julia
-- _julia_: Using Pkg \\\\ Pkg.add("PyCall")
+- _julia_: import Pkg \\\\ Pkg.add("PyCall")
 
 ## Run Simulations:
 - python3 -m run_batch <novelty\_weigth or None>
