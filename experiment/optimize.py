@@ -39,7 +39,7 @@ async def main(novelty_weight: float = None) -> None:
 
     # database
     tme = time.strftime("[%H-%M-%S]", time.localtime())
-    db_str = f"/media/oliver/DC7282EC7282CB2A/Users/olive/Desktop/thesis/experiments/db_n_{novelty_weight}_{tme}"
+    db_str = f".exps/db_n_{novelty_weight}_{tme}"
     database = open_async_database_sqlite(db_str, create=True)
 
     # unique database identifier for optimizer

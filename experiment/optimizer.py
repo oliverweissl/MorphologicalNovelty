@@ -204,7 +204,7 @@ class Optimizer(EAOptimizer[Genotype, float, float]):
         population: List[Genotype],
         fitnesses: List[float],
         novelty: List[float],
-        novelty_weight: float | None,
+        novelty_weight: "float | None",
         num_parent_groups: int,
     ) -> List[List[int]]:
         fitnesses = self._normalize_list(fitnesses) if novelty_weight is not None else fitnesses
