@@ -80,12 +80,14 @@ class EAPlots:
         # bxpl_data = [n["value"].values for _, n in nvlt]
 
         fig, ax = plt.subplots(1, 1, figsize=(5, 5))
-        fig.suptitle("Novelty Score")
+        fig.suptitle(f"Novelty Score {database}")
 
         ax.set_xlabel("Generations")
         ax.set_ylabel("Novelty")
         ax.plot(nvlt[["max", "mean", "min"]], label=["Max", "Mean", "Min"])
+        ax.set_ylim([-0.5, 1.05])
         # ax.violinplot(bxpl_data, positions=list(range(1,len(bxpl_data)+1)))
+        print(nvlt["mean"].mean())
         ax.legend()
         plt.show()
 
