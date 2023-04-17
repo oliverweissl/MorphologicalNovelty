@@ -41,8 +41,9 @@ class PhenotypeFramework:
         amt_instances = len(genotypes)
         bodies = [develop_v1(genotype) for genotype in genotypes]  # db only returns Genotypes, can be swithced to str using cls.deserialize()
 
-
-        coords = [cls._coordinates_pca_change_basis(cls._body_to_sorted_coordinates(body)) for body in bodies]  # PCA change of basis -> orientation of variance/ covariance
+        # TODO: check whats better + test if works
+        #coords = [cls._coordinates_pca_change_basis(cls._body_to_sorted_coordinates(body)) for body in bodies]  # PCA change of basis -> orientation of variance/ covariance
+        coords = [cls._body_to_sorted_coordinates(body) for body in bodies]
 
         hists = [None] * amt_instances
         i = 0
@@ -54,8 +55,8 @@ class PhenotypeFramework:
 
         # This takes most computation -> in python: ~ 63 sec, julia: ~ 1.1 sec
         novelty_scores = Main.calculate_novelty(hists)
-        mscore = max(novelty_scores)
-        novelty_scores = [float(score/mscore) for score in novelty_scores] # if score > 0. else 0.
+        mx_score = max(novelty_scores)
+        novelty_scores = [float(score/mx_score) for score in novelty_scores] # if score > 0. else 0.
         # scaling because the min novelty is 0 in theory --> some populations can have no duplicates therefore no 0s
         return novelty_scores
 
@@ -150,7 +151,6 @@ class PhenotypeFramework:
 
     @staticmethod
     def _wasserstein_softmax(arr: ndarray) -> ndarray:
-
         arr += (1/arr.size)
         norm = np.true_divide(arr, arr.sum())
         return norm

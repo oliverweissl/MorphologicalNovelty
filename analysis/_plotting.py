@@ -85,7 +85,7 @@ class EAPlots:
         ax.set_xlabel("Generations")
         ax.set_ylabel("Novelty")
         ax.plot(nvlt[["max", "mean", "min"]], label=["Max", "Mean", "Min"])
-        ax.set_ylim([-0.5, 1.05])
+        ax.set_ylim([-0.05, 1.05])
         # ax.violinplot(bxpl_data, positions=list(range(1,len(bxpl_data)+1)))
         print(nvlt["mean"].mean())
         ax.legend()
