@@ -8,7 +8,10 @@
 - _julia_: import Pkg \\\\ Pkg.add("PyCall") \\\\ Pkg.add("Shuffle")
 
 ## Run Simulations:
-- python3 -m run_batch <novelty\_weigth or None>
+For one specific simulation:
+- python3 -m run_batch --novelty <novelty weigth or None> --amount <amount of simulations> --seed <seed>
+For running multiple simulations in parrallel:
+- sh start_batches.sh 
 
 if novelty\_weight -> parent selection using weighted average (fitness*(1-novelty\_weight) + novelty*novelty\_weight) </br>
 if None -> parent selection using penalized fitness (fitness*novelty)
