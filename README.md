@@ -10,6 +10,7 @@
 ## Run Simulations:
 For one specific simulation:
 - python3 -m run_batch --novelty <novelty weigth or None> --amount <amount of simulations> --seed <seed><br/>
+ 
 For running multiple simulations in parrallel:
 - sh start_batches.sh 
 
