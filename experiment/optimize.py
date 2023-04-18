@@ -13,7 +13,7 @@ from revolve2.core.optimization import DbId
 
 
 async def main(novelty_weight: float = None, seed_val: int = 1234) -> None:
-    seed(seed_val)  # set seed
+    # set seed
     """Run the optimization process."""
     # number of initial mutations for body and brain CPPNWIN networks
     NUM_INITIAL_MUTATIONS = 10
@@ -36,7 +36,7 @@ async def main(novelty_weight: float = None, seed_val: int = 1234) -> None:
 
     # random number generator
     rng = Random()
-    rng.seed(6)
+    rng.seed(seed_val)
 
     # database
     tme = time.strftime("[%H-%M-%S]", time.localtime())
