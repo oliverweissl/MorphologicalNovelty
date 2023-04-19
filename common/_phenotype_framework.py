@@ -4,12 +4,10 @@ import numpy as np
 from numpy import ndarray
 from multineat import Genome
 from typing import List, Tuple
-from math import atan2, pi, sqrt
-from scipy.spatial.transform import Rotation as R
-from ._compare_histograms import CompareHistorgrams as ch
 from revolve2.genotypes.cppnwin._genotype import Genotype
-from revolve2.core.modular_robot import Body, Brick, ActiveHinge
 from revolve2.genotypes.cppnwin.modular_robot.body_genotype_v1 import develop_v1
+
+from ._coordinate_ops import CoordinateOperations
 
 #os.environ["JULIA_NUM_THREADS"] = "2"
 from julia.api import Julia
@@ -40,8 +38,7 @@ class PhenotypeFramework:
         bodies = [develop_v1(genotype) for genotype in genotypes]  # db only returns Genotypes, can be swithced to str using cls.deserialize()
 
         # TODO: check whats better + test if works
-        #coords = [cls._coordinates_pca_change_basis(cls._body_to_sorted_coordinates(body)) for body in bodies]  # PCA change of basis -> orientation of variance/ covariance
-        coords = [cls._coordinates_pca_heuristic(cls._body_to_sorted_coordinates(body)) for body in bodies]
+        coords = CoordinateOperations.coords_from_bodies(bodies=bodies, cob_heuristics=True)
 
         hists = [None] * amt_instances
         i = 0
@@ -49,7 +46,6 @@ class PhenotypeFramework:
             mag, orient = cls._coordinates_to_magnitudes_orientation(coord)
             hists[i] = cls._gen_gradient_histogram(magnitudes=mag, orientations=orient)
             i += 1
-
 
         # This takes most computation -> in python: ~ 63 sec, julia: ~ 1.1 sec
         novelty_scores = Main.calculate_novelty(hists)
@@ -63,80 +59,6 @@ class PhenotypeFramework:
         genotype = Genotype(Genome())
         genotype.genotype.Deserialize(serialized_genotype)
         return genotype
-
-    @classmethod
-    def _compare_hist(cls, O: ndarray, E: ndarray) -> float:
-        score = ch.wasserstein_dist(O, E)
-        return score
-
-    @classmethod
-    def _body_to_sorted_coordinates(cls, body: Body) -> ndarray:
-        body_arr, core_pos = body.to_grid()
-        body_arr = np.asarray(body_arr)
-
-        x, y, z = body_arr.shape
-
-        elems = []
-        for xe in range(x):
-            for ye in range(y):
-                for ze in range(z):
-                    elem = body_arr[xe][ye][ze]
-                    if isinstance(elem, ActiveHinge) or isinstance(elem, Brick):
-                        elems.append(np.subtract((xe, ye, ze), core_pos))
-        elems = np.asarray(elems)
-        return elems
-
-    @classmethod
-    def _coordinates_pca_change_basis(cls, coords: ndarray) -> ndarray:
-        if len(coords) > 1:
-            covariance_matrix = np.cov(coords.T)
-            eigen_values, eigen_vectors = np.linalg.eig(covariance_matrix)
-
-            srt = np.argsort(eigen_values)[::-1]  # sorting axis, x-axis: biggest variance, y-axis second biggest, z-axis:smallest
-            rot_rad = np.radians(180)
-            for i in range(len(srt)):
-                while True:
-                    if srt[i] == i:
-                        break
-                    cand = srt[i]
-                    rotation = R.from_rotvec(rot_rad * eigen_vectors[cand])
-                    coords = rotation.apply(coords)
-
-                    eigen_vectors[i], eigen_vectors[cand] = np.copy(eigen_vectors[cand]), np.copy(eigen_vectors[i])
-                    srt[[i, cand]] = srt[[cand, i]]
-
-            coords = np.linalg.inv(eigen_vectors).dot(coords.T)
-        return coords.T
-
-    @classmethod
-    def _coordinates_pca_heuristic(cls, coords: ndarray) -> ndarray:
-        if len(coords) > 1:
-            covariance_matrix = np.cov(coords.T)
-            eigen_values, _ = np.linalg.eig(covariance_matrix)
-            srt = np.argsort(eigen_values)[::-1]
-            for i in range(len(srt)):
-                while True:
-                    if srt[i] == i:
-                        break
-                    cand = srt[i]
-                    coords[:, [i, cand]] = coords[:, [cand, i]]
-                    srt[[i, cand]] = srt[[cand, i]]
-        return coords
-
-
-    @classmethod
-    def _coordinates_to_magnitudes_orientation(cls, coordinates: ndarray) -> Tuple[List[float], List[Tuple[float, float]]]:
-        mags = [0] * len(coordinates)  # faster than append
-        orient = [(0, 0)] * len(coordinates)  # faster than append
-        i = 0  # faster than enumerate
-        for coord in coordinates:
-            if len(coord) == 3:
-                ax = atan2(sqrt(coord[1] ** 2 + coord[2] ** 2), coord[0]) * 180 / pi
-                az = atan2(coord[2], sqrt(coord[1] ** 2 + coord[0] ** 2)) * 180 / pi
-                orient[i] = (ax, az)
-                mags[i] = np.sqrt(coord.dot(coord))
-            i += 1
-        return mags, orient
 
     @classmethod
     def _gen_gradient_histogram(cls, magnitudes: List[float], orientations: List[Tuple[float, float]], num_bins: int = 20) -> ndarray:
