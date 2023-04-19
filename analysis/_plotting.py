@@ -3,10 +3,16 @@ from typing import Tuple
 
 import matplotlib.pyplot as plt
 
+import numpy as np
 from numpy import std
 from common import PhenotypeFramework as pf
 from revolve2.core.optimization import DbId
+from revolve2.genotypes.cppnwin.modular_robot.body_genotype_v1 import develop_v1
+from matplotlib.colors import LinearSegmentedColormap
+from revolve2.core.modular_robot import Body, Brick, ActiveHinge
 from ._load_db import load_db
+
+
 
 
 class EAPlots:
@@ -15,7 +21,6 @@ class EAPlots:
         vmin = min(lst)
         vmax = max(lst)
         return [(x - vmin) / (vmax - vmin) for x in lst]
-
 
     @classmethod
     def plot_bricks_hinges(cls, database: str, db_id: DbId = DbId("optmodular"), *_) -> None:
@@ -60,7 +65,6 @@ class EAPlots:
 
         plt.show()
 
-
     @classmethod
     def plot_novelty_from_db(cls, database: str, db_id: DbId = DbId("optmodular"), *_) -> None:
         """
@@ -91,12 +95,10 @@ class EAPlots:
         ax.legend()
         plt.show()
 
-
-
     @classmethod
     def plot_novelty(cls,
                      database: str,
-                     novelty_test:Tuple[str, float] = ("chybyshev-dist", None),
+                     novelty_test: Tuple[str, float] = ("chybyshev-dist", None),
                      db_id: DbId = DbId("optmodular")) -> None:
         """
         :param database: name of the db
@@ -135,6 +137,64 @@ class EAPlots:
         plt.tight_layout()
         plt.show()
 
+    @classmethod
+    def plot_avg_shape(cls, database: str, db_id: DbId = DbId("optmodular"), size: int = 40) -> None:
+        assert int(size/2) == size//2, "ERROR: size must be a divisible by 2"
+        colors = [(0, 0, 0), (1, 0, 0)]
+        cm = LinearSegmentedColormap.from_list(
+            "Custom", colors, N=100)
+
+        df = load_db(database, db_id)
+        genotypes = df["serialized_multineat_genome"].loc[df["generation_index"] == df["generation_index"].max()].tolist()
+
+        def _get_img(body):
+            body_arr, core_pos = body.to_grid()
+            body_arr = np.asarray(body_arr)
+            x, y, z = body_arr.shape
+            cx, cy, cz = core_pos
+
+            img_xy, img_xz, img_yz = np.zeros((size, size)), np.zeros((size, size)), np.zeros((size, size))
+            img_xy[cx + size//2][cy + size//2] += 1
+            img_xz[cx + size//2][cz + size//2] += 1
+            img_yz[cy + size//2][cz + size//2] += 1
+            for xe in range(x):
+                for ye in range(y):
+                    for ze in range(z):
+                        elem = body_arr[xe][ye][ze]
+                        if isinstance(elem, Brick) or isinstance(elem, ActiveHinge):
+                            img_xy[xe - cx + size//2][ye - cy + size//2] += 1
+                            img_xz[xe - cx + size//2][ze - cz + size//2] += 1
+                            img_yz[ye - cy + size//2][ze - cz + size//2] += 1
+
+            return img_xy, img_xz, img_yz
+
+        images = [_get_img(develop_v1(pf.deserialize(genotype))) for genotype in genotypes]
+
+        fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(15, 5))
+
+
+
+        im_xy, im_xz, im_yz = None, None, None
+        for img_xy, img_xz, img_yz in images:
+            im_xy = im_xy + img_xy if im_xy is not None else img_xy
+            im_xz = im_xz + img_xz if im_xz is not None else img_xz
+            im_yz = im_yz + img_yz if im_yz is not None else img_yz
+
+        cmap = "Greys"
+        ax1.imshow(im_xy, origin='lower', cmap=cmap)
+        ax2.imshow(im_xz, origin='lower', cmap=cmap)
+        ax3.imshow(im_yz, origin='lower', cmap=cmap)
+
+
+        ax1.set_title("Average Bodies on the XY-Plane")
+        ax2.set_title("Average Bodies on the XZ-Plane")
+        ax3.set_title("Average Bodies on the ZY-Plane")
+
+        for ax in [ax1,ax2,ax3]:
+            ax.set_yticklabels([])
+            ax.set_xticklabels([])
+
+
 
 def main() -> None:
     """Run this file as a command line tool."""
@@ -165,7 +225,6 @@ def main() -> None:
     {"bricks_hinges": EAPlots.plot_bricks_hinges,
      "novelty": EAPlots.plot_novelty,
      "novelty_db": EAPlots.plot_novelty_from_db}[args.plot](args.database, DbId(args.db_id), args.test)
-
 
 
 if __name__ == "__main__":
