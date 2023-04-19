@@ -10,7 +10,6 @@ parser.add_argument("-s", "--seed", default=1234, type=int, help="Set seed for r
 
 args = vars(parser.parse_args())
 
-
 async def main(novelty_weight: "float|None", amt: int, seed_part:int):
     if novelty_weight is not None:
         novelty_weight = float(novelty_weight)
@@ -19,3 +18,4 @@ async def main(novelty_weight: "float|None", amt: int, seed_part:int):
 
 if __name__ == '__main__':
     asyncio.run(main(args["novelty"], args["amount"], args["seed"]))
+
