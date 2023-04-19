@@ -1,8 +1,10 @@
-python3 -m run_batch 0.0 &
-python3 -m run_batch 0.2 &
-python3 -m run_batch 0.4 &
-python3 -m run_batch 0.6 &
-python3 -m run_batch 0.8 &
-python3 -m run_batch 1.0 &
-python3 -m run_batch &
-wait 
+for run in {1..4}; do
+  python3 -m run_batch -n 0.0 -s "$run" &
+  python3 -m run_batch -n 0.25 -s "$run" &
+  python3 -m run_batch -n 0.5 -s "$run" &
+  python3 -m run_batch -n 0.75 -s "$run" &
+  python3 -m run_batch -n 1.0 -s "$run" &
+  python3 -m run_batch -s "$run" &
+  sleep 60
+done
+wait
