@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-import os
 import numpy as np
-
 from numpy import ndarray
 from multineat import Genome
 from typing import List, Tuple
@@ -43,7 +41,7 @@ class PhenotypeFramework:
 
         # TODO: check whats better + test if works
         #coords = [cls._coordinates_pca_change_basis(cls._body_to_sorted_coordinates(body)) for body in bodies]  # PCA change of basis -> orientation of variance/ covariance
-        coords = [cls._body_to_sorted_coordinates(body) for body in bodies]
+        coords = [cls._coordinates_pca_heuristic(cls._body_to_sorted_coordinates(body)) for body in bodies]
 
         hists = [None] * amt_instances
         i = 0
@@ -90,13 +88,6 @@ class PhenotypeFramework:
 
     @classmethod
     def _coordinates_pca_change_basis(cls, coords: ndarray) -> ndarray:
-        """if len(coords) > 1:  # covariance only works with n > 1 points
-            coords = coords.T
-            covariance_matrix = np.cov(coords)
-            eigen_values, eigen_vectors = np.linalg.eig(covariance_matrix)  # eigenvalues, eigenvectors
-
-            srt = np.argsort(eigen_values)  # sorting axis, x-axis: biggest variance, y-axis second biggest, z-axis:smallest
-            coords = np.linalg.solve(eigen_vectors[srt].T, coords[srt]).T"""
         if len(coords) > 1:
             covariance_matrix = np.cov(coords.T)
             eigen_values, eigen_vectors = np.linalg.eig(covariance_matrix)
@@ -116,6 +107,22 @@ class PhenotypeFramework:
 
             coords = np.linalg.inv(eigen_vectors).dot(coords.T)
         return coords.T
+
+    @classmethod
+    def _coordinates_pca_heuristic(cls, coords: ndarray) -> ndarray:
+        if len(coords) > 1:
+            covariance_matrix = np.cov(coords.T)
+            eigen_values, _ = np.linalg.eig(covariance_matrix)
+            srt = np.argsort(eigen_values)[::-1]
+            for i in range(len(srt)):
+                while True:
+                    if srt[i] == i:
+                        break
+                    cand = srt[i]
+                    coords[:, [i, cand]] = coords[:, [cand, i]]
+                    srt[[i, cand]] = srt[[cand, i]]
+        return coords
+
 
     @classmethod
     def _coordinates_to_magnitudes_orientation(cls, coordinates: ndarray) -> Tuple[List[float], List[Tuple[float, float]]]:
