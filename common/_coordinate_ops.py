@@ -1,7 +1,6 @@
 import numpy as np
 from numpy import ndarray
-from typing import List, Tuple
-from math import atan2, pi, sqrt
+from typing import List
 from scipy.spatial.transform import Rotation as R
 from revolve2.core.modular_robot import Body, Brick, ActiveHinge
 
@@ -71,16 +70,4 @@ class CoordinateOperations:
                     srt[[i, cand]] = srt[[cand, i]]
         return coords
 
-    @classmethod
-    def _coordinates_to_magnitudes_orientation(cls, coordinates: ndarray) -> Tuple[List[float], List[Tuple[float, float]]]:
-        mags = [0] * len(coordinates)  # faster than append
-        orient = [(0, 0)] * len(coordinates)  # faster than append
-        i = 0  # faster than enumerate
-        for coord in coordinates:
-            if len(coord) == 3:
-                ax = atan2(sqrt(coord[1] ** 2 + coord[2] ** 2), coord[0]) * 180 / pi
-                az = atan2(coord[2], sqrt(coord[1] ** 2 + coord[0] ** 2)) * 180 / pi
-                orient[i] = (ax, az)
-                mags[i] = np.sqrt(coord.dot(coord))
-            i += 1
-        return mags, orient
+

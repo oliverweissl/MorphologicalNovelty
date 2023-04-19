@@ -4,6 +4,7 @@ import numpy as np
 from numpy import ndarray
 from multineat import Genome
 from typing import List, Tuple
+from math import atan2, pi, sqrt
 from revolve2.genotypes.cppnwin._genotype import Genotype
 from revolve2.genotypes.cppnwin.modular_robot.body_genotype_v1 import develop_v1
 
@@ -17,13 +18,13 @@ jl.eval('include("common/calc_novelty.jl")')
 
 
 class PhenotypeFramework:
-    @classmethod
+    """@classmethod
     def get_bricks_hinges_amount(cls, genotype: Genotype) -> (int, int):
         #assert isinstance(genotype, (Genotype, str)), f"Error: Genotype is of type {type(genotype)}, Genotype or str expected!"
         # genotype = genotype if not isinstance(genotype, str) else cls.deserialize(genotype)
         body = develop_v1(genotype)
         bricks, hinges = cls._body_to_sorted_coordinates(body)
-        return len(bricks), len(hinges)
+        return len(bricks), len(hinges)"""
 
     @classmethod
     def get_novelty_population(cls, genotypes: List[Genotype]) -> List[float]:
@@ -59,6 +60,21 @@ class PhenotypeFramework:
         genotype = Genotype(Genome())
         genotype.genotype.Deserialize(serialized_genotype)
         return genotype
+
+    @classmethod
+    def _coordinates_to_magnitudes_orientation(cls, coordinates: ndarray) -> Tuple[
+        List[float], List[Tuple[float, float]]]:
+        mags = [0] * len(coordinates)  # faster than append
+        orient = [(0, 0)] * len(coordinates)  # faster than append
+        i = 0  # faster than enumerate
+        for coord in coordinates:
+            if len(coord) == 3:
+                ax = atan2(sqrt(coord[1] ** 2 + coord[2] ** 2), coord[0]) * 180 / pi
+                az = atan2(coord[2], sqrt(coord[1] ** 2 + coord[0] ** 2)) * 180 / pi
+                orient[i] = (ax, az)
+                mags[i] = np.sqrt(coord.dot(coord))
+            i += 1
+        return mags, orient
 
     @classmethod
     def _gen_gradient_histogram(cls, magnitudes: List[float], orientations: List[Tuple[float, float]], num_bins: int = 20) -> ndarray:
