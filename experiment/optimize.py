@@ -3,7 +3,7 @@ import time
 import logging
 
 
-from random import Random
+from random import Random, seed
 
 import multineat
 from .genotype import random as random_genotype
@@ -13,6 +13,10 @@ from revolve2.core.optimization import DbId
 
 
 async def main(novelty_weight: float = None, seed_val: int = 1234) -> None:
+<<<<<<< HEAD
+=======
+    # set seed
+>>>>>>> 6f0fbad16b37a98bb570fe162bee2b53921de822
     """Run the optimization process."""
     # number of initial mutations for body and brain CPPNWIN networks
     NUM_INITIAL_MUTATIONS = 10

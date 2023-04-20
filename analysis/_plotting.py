@@ -3,10 +3,13 @@ from typing import Tuple
 
 import matplotlib.pyplot as plt
 
+import numpy as np
 from numpy import std
 from common import PhenotypeFramework as pf
 from revolve2.core.optimization import DbId
+from revolve2.genotypes.cppnwin.modular_robot.body_genotype_v1 import develop_v1
 from matplotlib.colors import LinearSegmentedColormap
+from revolve2.core.modular_robot import Body, Brick, ActiveHinge
 from ._load_db import load_db
 
 
@@ -16,7 +19,6 @@ class EAPlots:
         vmin = min(lst)
         vmax = max(lst)
         return [(x - vmin) / (vmax - vmin) for x in lst]
-
 
     @classmethod
     def plot_bricks_hinges(cls, database: str, db_id: DbId = DbId("optmodular"), *_) -> None:
@@ -61,7 +63,6 @@ class EAPlots:
 
         plt.show()
 
-
     @classmethod
     def plot_novelty_from_db(cls, database: str, db_id: DbId = DbId("optmodular"), *_) -> None:
         """
@@ -81,21 +82,21 @@ class EAPlots:
         # bxpl_data = [n["value"].values for _, n in nvlt]
 
         fig, ax = plt.subplots(1, 1, figsize=(5, 5))
-        fig.suptitle("Novelty Score")
+        fig.suptitle(f"Novelty Score {database}")
 
         ax.set_xlabel("Generations")
         ax.set_ylabel("Novelty")
         ax.plot(nvlt[["max", "mean", "min"]], label=["Max", "Mean", "Min"])
+        ax.set_ylim([-0.05, 1.05])
         # ax.violinplot(bxpl_data, positions=list(range(1,len(bxpl_data)+1)))
+        print(nvlt["mean"].mean())
         ax.legend()
         plt.show()
-
-
 
     @classmethod
     def plot_novelty(cls,
                      database: str,
-                     novelty_test:Tuple[str, float] = ("chybyshev-dist", None),
+                     novelty_test: Tuple[str, float] = ("chybyshev-dist", None),
                      db_id: DbId = DbId("optmodular")) -> None:
         """
         :param database: name of the db
@@ -134,14 +135,9 @@ class EAPlots:
         plt.tight_layout()
         plt.show()
 
-
     @classmethod
     def plot_avg_shape(cls, database: str, db_id: DbId = DbId("optmodular"), size: int = 40) -> None:
         assert int(size/2) == size//2, "ERROR: size must be a divisible by 2"
-        colors = [(0, 0, 0), (1, 0, 0)]
-        cm = LinearSegmentedColormap.from_list(
-            "Custom", colors, N=100)
-
         df = load_db(database, db_id)
         genotypes = df["serialized_multineat_genome"].loc[df["generation_index"] == df["generation_index"].max()].tolist()
 
@@ -169,8 +165,7 @@ class EAPlots:
         images = [_get_img(develop_v1(pf.deserialize(genotype))) for genotype in genotypes]
 
         fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(15, 5))
-
-
+        fig.suptitle(database)
 
         im_xy, im_xz, im_yz = None, None, None
         for img_xy, img_xz, img_yz in images:
@@ -191,6 +186,7 @@ class EAPlots:
         for ax in [ax1,ax2,ax3]:
             ax.set_yticklabels([])
             ax.set_xticklabels([])
+
 
 
 def main() -> None:
@@ -222,7 +218,6 @@ def main() -> None:
     {"bricks_hinges": EAPlots.plot_bricks_hinges,
      "novelty": EAPlots.plot_novelty,
      "novelty_db": EAPlots.plot_novelty_from_db}[args.plot](args.database, DbId(args.db_id), args.test)
-
 
 
 if __name__ == "__main__":

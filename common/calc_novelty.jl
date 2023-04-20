@@ -55,7 +55,7 @@ function wasserstein_distance(hist0, hist1, INT_CASTER)
     end
 end
 
-function calculate_novelty(histograms)
+function calculate_novelty(histograms::Vector{Matrix{Float64}})
     INT_CASTER::UInt64 = 10000
     amt_instances::UInt64 = length(histograms)
 
