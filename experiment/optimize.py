@@ -13,10 +13,7 @@ from revolve2.core.optimization import DbId
 
 
 async def main(novelty_weight: float = None, seed_val: int = 1234) -> None:
-<<<<<<< HEAD
-=======
-    # set seed
->>>>>>> 6f0fbad16b37a98bb570fe162bee2b53921de822
+
     """Run the optimization process."""
     # number of initial mutations for body and brain CPPNWIN networks
     NUM_INITIAL_MUTATIONS = 10
@@ -43,7 +40,7 @@ async def main(novelty_weight: float = None, seed_val: int = 1234) -> None:
 
     # database
     tme = time.strftime("[%H-%M-%S]", time.localtime())
-    db_str = f".exps/db_n_{novelty_weight}_{tme}"
+    db_str = f".exps_cob/db_n_{novelty_weight}_{tme}_{seed_val}"
     database = open_async_database_sqlite(db_str, create=True)
 
     # unique database identifier for optimizer

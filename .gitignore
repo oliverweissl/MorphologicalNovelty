@@ -5,6 +5,7 @@ __pycache__/
 *.ipynb
 .exps*
 .exps
+plots
 
 
 # C extensions
