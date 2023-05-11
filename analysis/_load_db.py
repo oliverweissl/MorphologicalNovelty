@@ -40,7 +40,7 @@ def load_db_novelty(database: str, db_id: DbId = DbId("optmodular")) -> pd.DataF
         ),
         db,
     )
-    return df
+    return df[["generation_index", "serialized_multineat_genome", "value"]]
 
 
 def load_db_fitness(database: str, db_id: DbId = DbId("optmodular")) -> pd.DataFrame:
@@ -67,4 +67,4 @@ def load_db_fitness(database: str, db_id: DbId = DbId("optmodular")) -> pd.DataF
         ),
         db,
     )
-    return df
+    return df[["generation_index", "value"]]
