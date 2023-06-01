@@ -59,7 +59,9 @@ def load_db_fitness(database: str, db_id: DbId = DbId("optmodular")) -> pd.DataF
             (DbEAOptimizer.db_id == db_id.fullname)
             & (DbEAOptimizerGeneration.ea_optimizer_id == DbEAOptimizer.id)
             & (DbEAOptimizerIndividual.ea_optimizer_id == DbEAOptimizer.id)
+            & (DbEAOptimizerIndividual.genotype_id == GenotypeDB.id)
             & (FloatDB.id == DbEAOptimizerIndividual.fitness_id)
+            & (GenotypeDB.body_id == DbGenotype.id)
             & (
                     DbEAOptimizerGeneration.individual_id
                     == DbEAOptimizerIndividual.individual_id
@@ -67,4 +69,4 @@ def load_db_fitness(database: str, db_id: DbId = DbId("optmodular")) -> pd.DataF
         ),
         db,
     )
-    return df[["generation_index", "value"]]
+    return df[["generation_index", "serialized_multineat_genome", "value"]]

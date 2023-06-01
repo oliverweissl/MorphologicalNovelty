@@ -4,179 +4,27 @@ from typing import Tuple, List
 import matplotlib
 import matplotlib.pyplot as plt
 
-from scipy.stats import wilcoxon
+from scipy.stats import wilcoxon, kstest
 import copy
 import pandas as pd
 import numpy as np
+import statistics
 import seaborn as sns
 from numpy import std
 from common import PhenotypeFramework as pf
 from revolve2.core.optimization import DbId
 from revolve2.genotypes.cppnwin.modular_robot.body_genotype_v1 import develop_v1
 from revolve2.core.modular_robot import Body, Brick, ActiveHinge
+from revolve2.core.modular_robot import MorphologicalMeasures
 from ._load_db import load_db_novelty
 
-font = {'family': 'sans-serif',
-        'size': 12}
-
-matplotlib.rc('font', **font)
-
-
 class EAPlots:
+    plt.rcParams['font.size'] = 18
     @classmethod
     def _normalize_list(cls, lst: list) -> list:
         vmin = min(lst)
         vmax = max(lst)
         return [(x - vmin) / (vmax - vmin) for x in lst]
-
-    @classmethod
-    def plot_bricks_hinges(cls, database: str, db_id: DbId = DbId("optmodular"), *_) -> None:
-        """
-        Plot fitness as described at the top of this file.
-
-        :param database: Database where the data is stored.
-        :param db_id: Id of the evolutionary process to plot.
-        """
-
-        df = load_db_novelty(database, db_id)
-
-        df["bricks"], df["hinges"] = zip(*df.serialized_multineat_genome.apply(pf.get_bricks_hinges_amount))
-
-        # calculate max min avg
-        hngs = (
-            df[["generation_index", "hinges"]]
-            .groupby(by="generation_index")
-            .describe()["hinges"]
-        )
-
-        blcks = (
-            df[["generation_index", "bricks"]]
-            .groupby(by="generation_index")
-            .describe()["bricks"]
-        )
-
-        test = database.replace("experiments/database_", "")
-
-        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 5))
-        fig.suptitle(f"{test}")
-
-        ax1.set_xlabel("Generations")
-        ax1.set_ylabel("Amount of Hinges")
-        ax1.plot(hngs[["max", "mean", "min"]], label=["Max", "Mean", "Min"])
-        ax1.legend()
-
-        ax2.set_xlabel("Generations")
-        ax2.set_ylabel("Amount of bricks")
-        ax2.plot(blcks[["max", "mean", "min"]], label=["Max", "Mean", "Min"])
-        ax2.legend()
-
-        plt.show()
-
-    @classmethod
-    def plot_novelty_from_db(cls, database: str, db_id: DbId = DbId("optmodular"), *_) -> float:
-        """
-        Plot fitness as described at the top of this file.
-
-        :param database: Database where the data is stored.
-        :param db_id: Id of the evolutionary process to plot.
-        """
-
-        df = load_db_novelty(database, db_id)
-        #print(df)
-
-        nvlt = (
-            df[["generation_index", "value"]]
-            .groupby(by="generation_index")
-            .describe()["value"])
-
-        # bxpl_data = [n["value"].values for _, n in nvlt]
-
-        fig, ax = plt.subplots(1, 1, figsize=(5, 5))
-        fig.suptitle(f"Novelty Score {database}")
-
-        ax.set_xlabel("Generations")
-        ax.set_ylabel("Novelty")
-        ax.plot(nvlt[["max", "mean", "min"]], label=["Max", "Mean", "Min"])
-        ax.set_ylim([-0.05, 1.05])
-        # ax.violinplot(bxpl_data, positions=list(range(1,len(bxpl_data)+1)))
-        ax.legend()
-        plt.show()
-        return nvlt["mean"].mean()
-
-    @classmethod
-    def plot_novelty(cls,
-                     database: str,
-                     novelty_test: Tuple[str, float] = ("chybyshev-dist", None),
-                     db_id: DbId = DbId("optmodular")) -> None:
-        """
-        :param database: name of the db
-        :param db_id: id of the database
-        :param test: test to be performed to get novelty metric,(default = chybyshev_distance) options:
-                    'yates-chi-squared', 'chi-squared', 'hellinger-dist',
-                    'manhattan-dist', 'euclidian-dist', 'pcc'
-        :return:
-        """
-        df = load_db_novelty(database, db_id)
-
-        generation_groups = df[["generation_index", "serialized_multineat_genome"]].groupby(by="generation_index")
-        genome_groups = [data["serialized_multineat_genome"].values for _, data in generation_groups]
-
-        data = []
-        for generation in genome_groups:
-            novelty_scores = pf.get_novelty_population(generation, normalization="clipping", novelty_test=novelty_test)
-            data.append(novelty_scores)
-
-        avg, vmax, vmin, vstd = [], [], [], []
-        for sublist in data:
-            vmax.append(max(sublist))
-            vmin.append(min(sublist))
-            avg.append(sum(sublist) / len(sublist))
-            vstd.append(std(sublist))
-
-        fig, ax = plt.subplots()
-        ax.set_title(f"Novelty Score for: {novelty_test}-Test")
-        ax.plot(avg, label="average", color="blue")
-        ax.boxplot(data, positions=list(range(len(data))))
-
-        ax.plot(vmin, label="min")
-        ax.plot(vmax, label="max")
-        ax.legend(loc='upper left', bbox_to_anchor=(1.04, 1))
-        print(f"Avg STD: {sum(vstd) / len(vstd)}")
-        plt.tight_layout()
-        plt.show()
-
-    @classmethod
-    def plot_avg_shape(cls, database: str, db_id: DbId = DbId("optmodular"), size: int = 40) -> None:
-        assert int(size/2) == size//2, "ERROR: size must be a divisible by 2"
-        df = load_db_novelty(database, db_id)
-        genotypes = df["serialized_multineat_genome"].loc[df["generation_index"] == df["generation_index"].max()].tolist()
-
-
-
-        images = [cls._get_img(develop_v1(pf.deserialize(genotype)), size) for genotype in genotypes]
-
-        fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(15, 5))
-        fig.suptitle(database)
-
-        im_xy, im_xz, im_yz = None, None, None
-        for img_xy, img_xz, img_yz in images:
-            im_xy = im_xy + img_xy if im_xy is not None else img_xy
-            im_xz = im_xz + img_xz if im_xz is not None else img_xz
-            im_yz = im_yz + img_yz if im_yz is not None else img_yz
-
-        cmap = "Greys"
-        ax1.imshow(im_xy, origin='lower', cmap=cmap)
-        ax2.imshow(im_xz, origin='lower', cmap=cmap)
-        ax3.imshow(im_yz, origin='lower', cmap=cmap)
-
-
-        ax1.set_title("Average Bodies on the XY-Plane")
-        ax2.set_title("Average Bodies on the XZ-Plane")
-        ax3.set_title("Average Bodies on the ZY-Plane")
-
-        for ax in [ax1,ax2,ax3]:
-            ax.set_yticklabels([])
-            ax.set_xticklabels([])
 
     @classmethod
     def plot_avg_shape_aggregate(cls, databases: List[str], db_id: DbId = DbId("optmodular"), size: int = 28, norm: str = None) -> None:
@@ -244,19 +92,23 @@ class EAPlots:
     @classmethod
     def plot_novelty_fintess_averages(cls, n, f):
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 5))
+        ticks = n.columns.tolist()
+        ticks[-1] = "Prod"
+
 
         sns.boxplot(ax=ax1, data=n.iloc[0], color="blue")
-        ax1.set_xticklabels(n.columns)
+        ax1.set_xticklabels(ticks)
         ax1.set_ylabel("Novelty Average")
         ax1.set_xlabel("Novelty Configuration")
         ax1.set(ylim=(0, 1))
 
         sns.boxplot(ax=ax2, data=f.iloc[0], color="red")
-        ax2.set_xticklabels(n.columns)
+        ax2.set_xticklabels(ticks)
         ax2.set_ylabel("Fitness Average")
         ax2.set_xlabel("Novelty Configuration")
         ax1.set(ylim=(0, None))
 
+        plt.tight_layout()
         plt.show()
 
     @classmethod
@@ -290,13 +142,13 @@ class EAPlots:
 
             none_where = [float(x) for x in np.roots(func - none_mean) if xs[-1] >= float(x) >= xs[0]][0]
             ax.plot(mx, my, color="red", alpha=0.5)
-            ax.scatter([none_where] * len(none_vals), none_vals, label=f"None, x={none_where:.3f}", color="green", alpha=0.5, s=10)
+            ax.scatter([none_where] * len(none_vals), none_vals, label=f"Prod, x={none_where:.3f}", color="green", alpha=0.5, s=10)
 
             ticks = list(set(xs))
             ax.set_xticks(ticks)
             ax.set_ylabel(y_axs)
             ax.set_xlabel("Novelty Config")
-            ax.legend()
+            ax.legend(fontsize=16)
             yss.append(ys)
             none_yss.append(none_vals)
 
@@ -305,7 +157,7 @@ class EAPlots:
 
 
         ax3.scatter(yss[0], yss[1], color="grey", alpha=0.5, s=10)
-        ax3.scatter(none_yss[0], none_yss[1], label=f"None", color="green", alpha=0.5, s=10)
+        ax3.scatter(none_yss[0], none_yss[1], label=f"Prod", color="green", alpha=0.5, s=10)
 
         #func = np.poly1d(np.polyfit(yss[0], yss[1], 3))
         #xss_new = np.linspace(min(yss[0]), max(yss[0]), 100)
@@ -318,6 +170,7 @@ class EAPlots:
         ax3.set_ylabel("Fitness")
         ax3.set_xlabel("Novelty")
 
+        plt.tight_layout()
         plt.show()
 
     @classmethod
@@ -327,27 +180,21 @@ class EAPlots:
         fig.supylabel(ylabel)
         for i, key in enumerate(metric.keys()):
             tmp_df = pd.DataFrame(metric[key]).T.describe().T
-            mx, mn, av, pc = tmp_df["max"].max(), tmp_df["min"].min(), tmp_df["mean"].mean(), tmp_df["mean"].pct_change().mean()
 
             if ylabel == "Fitness":
-                txt = f"Max: {mx:.4f}"
                 to_plot = tmp_df["mean"]
             else:
                 to_plot = tmp_df[["mean", "min"]]
-                txt = f"Min: {mn:.4f}"
-
+            axs[i // 3, i % 3].hlines(tmp_df["mean"].tail(1), 0, 400, label=f"{tmp_df['mean'].tail(1).values[0]:.3f}", colors="r", linestyles="dashed")
             axs[i // 3, i % 3].plot(tmp_df.index, to_plot)
             axs[i // 3, i % 3].fill_between(tmp_df.index, tmp_df["mean"]-tmp_df["std"],tmp_df["mean"]+tmp_df["std"], alpha=0.5,color="grey")
 
             axs[i // 3, i % 3].set_ylim([-0.05, ymax])
             axs[i // 3, i % 3].set_xlim([-5, 405])
+
+            key = key if "None" not in key else "Prod"
             axs[i // 3, i % 3].set_title(f"Novelty Config: {key}")
-
-
-            print("\n"+key)
-            print(txt)
-            print(f"Average: {av:.4f}")
-            print(f"Avg. Change: {pc:.2%}")
+            axs[i // 3, i % 3].legend(loc='lower right')
 
         plt.tight_layout()
         plt.show()
@@ -405,7 +252,8 @@ class EAPlots:
                 corrs = []
                 for a in range(num_simulations-1):
                     for b in range(a + 1, num_simulations):
-                        corrs.append(wilcoxon(row[i][a * sz:a * sz + sz], row[i][b * sz:b * sz + sz], zero_method="zsplit", method="approx").pvalue)
+                        #corrs.append(wilcoxon(row[i][a * sz:a * sz + sz], row[i][b * sz:b * sz + sz], zero_method="zsplit", method="approx").pvalue)
+                        corrs.append(kstest(row[i][a * sz:a * sz + sz], row[i][b * sz:b * sz + sz]).pvalue)
                 val = sum(corrs) / len(corrs)
                 ltx_str = ltx_str.replace(f"i{i+1}{i+1}", f"{val:.4E}")
                 if i == lr-1:
@@ -413,10 +261,69 @@ class EAPlots:
 
                 for j in range(i+1, lr):
                     sz = min(len(row[i]), len(row[j]))
-                    val = wilcoxon(row[i][:sz], row[j][:sz]).pvalue
+                    #val = wilcoxon(row[i][:sz], row[j][:sz]).pvalue
+                    val = kstest(row[i][:sz], row[j][:sz]).pvalue
                     ltx_str = ltx_str.replace(f"i{i+1}{j+1}", f"{val:.4E}") if val < 0.05 else ltx_str.replace(f"i{i+1}{j+1}", f"\cellcolor[HTML]{{FD6864}}{val:.4E}")
 
             with open(f"plots/{name_add}{idx}.txt", "w") as f:
                 f.write(ltx_str)
+
+
+    @classmethod
+    def plot_morphological_descriptors_development(cls, databases: List[str], seperator:str, db_id: DbId = DbId("optmodular"), generations:int = 400):
+        print("Warning: This function takes extremly long!! It is not frozen")
+        cov, sym, lim = [[] for _ in range(generations)], [[] for _ in range(generations)], [[] for _ in range(generations)]
+        for database in databases:
+            df = load_db_novelty(database, db_id)
+            vals = (df[["generation_index", "serialized_multineat_genome"]].groupby(by="generation_index")["serialized_multineat_genome"].apply(list))
+            for i in range(generations):
+                for genotype in vals.iloc[i]:
+                    body = develop_v1(pf.deserialize(genotype))
+                    try:
+                        mm = MorphologicalMeasures(body)
+                        cov[i].append(mm.coverage)
+                        sym[i].append(mm.symmetry)
+                        lim[i].append(mm.limbs)
+                    except:
+                        continue
+
+        fig, axs = plt.subplots(1, 3, figsize=(15, 3))
+        fig.supxlabel("Generations")
+
+        for ax,label,data in zip(axs,["Coverage", "Symmetry", "Limbs"], [cov, sym, lim]):
+            ax.set_ylabel(label)
+            cmean, cmin, cmax, cstd = cls._describe_lists(data)
+
+            avg_std = sum(cstd)/len(cstd)
+            ax.plot(cmean, color="blue")
+            ax.plot([], label=f"std: {avg_std:.4f}")
+            #ax.plot(cmin, label="Min", color="orange")
+            #ax.plot(cmax, label="Max", color="green")
+            ax.fill_between(list(range(generations)),
+                             [c - s if c-s >= 0 else 0 for c, s in zip(cmean, cstd)],
+                             [c + s for c, s in zip(cmean, cstd)],
+                             alpha=0.5, color="grey")
+            ax.legend()
+            ax.set_ylim([-0.05, 1.1])
+
+        plt.tight_layout()
+        plt.savefig(f"plots/{seperator}_morph.png")
+
+
+    @classmethod
+    def _describe_lists(cls, input: List[List]) -> Tuple[List, List, List, List]:
+        ll = len(input)
+        mean, mmin, mmax, std = [0]*ll, [0]*ll, [0]*ll, [0]*ll
+        for i in range(ll):
+            curr = input[i]
+            mean[i] = sum(curr)/len(curr)
+            mmin[i] = min(curr)
+            mmax[i] = max(curr)
+            std[i] = statistics.stdev(curr)
+
+        return mean, mmin, mmax, std
+
+
+
 
 

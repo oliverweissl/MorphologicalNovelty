@@ -13,56 +13,57 @@ class Condenser:
         self.gen_amount = gen_amount
         self.seperators = seperators
 
-        self.novelty_averages = dict.fromkeys(self.seperators)
-        self.fitness_averages = dict.fromkeys(self.seperators)
-
         self.fitness_data = dict.fromkeys(self.seperators)
+        self.fitness_std = dict.fromkeys(self.seperators)
+        self.fitness_max = dict.fromkeys(self.seperators)
+
         self.novelty_data = dict.fromkeys(self.seperators)
+        self.novelty_std = dict.fromkeys(self.seperators)
+        self.novelty_min = dict.fromkeys(self.seperators)
+
         self.mmeasure_data = dict.fromkeys(self.seperators)
 
+        self.best_final_morpholigeis = dict.fromkeys(self.seperators)
+        self.glob_max_indx = dict.fromkeys(self.seperators)
+
         for key in seperators:
-            self.novelty_averages[key] = []
-            self.fitness_averages[key] = []
-
             self.mmeasure_data[key] = ([], [], [], [], [])
+
             self.novelty_data[key] = [[] for _ in range(self.gen_amount)]
+            self.novelty_min[key] = [[] for _ in range(self.gen_amount)]
+            self.novelty_std[key] = [[] for _ in range(self.gen_amount)]
+
+
             self.fitness_data[key] = [[] for _ in range(self.gen_amount)]
+            self.fitness_max[key] = [[] for _ in range(self.gen_amount)]
+            self.fitness_std[key] = [[] for _ in range(self.gen_amount)]
+
+            self.best_final_morpholigeis[key] = []
 
 
-    def populate_from_dir(self, db_dir:str, mmeasures:bool = False):
+    def populate_from_dir(self, db_dir:str):
         dbs = glob(f"{db_dir}/*")
         for db in tqdm(dbs):
             n_df = load_db_novelty(db)
             f_df = load_db_fitness(db)
 
-
-            if mmeasures:
-                for seperator in self.seperators:
-                    if seperator in db:
-                        self._populate_fitness(f_df, seperator)
-                        self._populate_novelty(n_df, seperator)
-                        self._populate_mmeasure(n_df, seperator)
-            else:
-                for seperator in self.seperators:
-                    if seperator in db:
-                        self._populate_fitness(f_df, seperator)
-                        self._populate_novelty(n_df, seperator)
-
-
-
-
+            for seperator in self.seperators:
+                if seperator in db:
+                    self._populate_fitness(f_df, seperator)
+                    self._populate_novelty(n_df, seperator)
+                    #self._populate_genotypes(f_df, seperator)
+                    self._populate_mmeasure(n_df, seperator)
 
     def _populate_novelty(self, df: pd.DataFrame, seperator:str):
-        vals = (df[[    "generation_index", "value"]].groupby(by="generation_index")["value"].apply(list))
+        vals = (df[["generation_index", "value"]].groupby(by="generation_index")["value"].apply(list))
         if len(vals) < self.gen_amount:
             raise Exception("Not fully populated df")
 
-        vm = [0]*self.gen_amount
         for i in range(self.gen_amount):
             v = vals.iloc[i]
-            vm[i] = sum(v)/len(v)
-            self.novelty_data[seperator][i].extend(v)
-        self.novelty_averages[seperator].append(sum(vm)/len(vm))
+            mean = sum(v)/len(v)
+            self.novelty_data[seperator][i].append(mean)
+            self.novelty_min[seperator][i].append(min(v))
 
     def _populate_fitness(self, df: pd.DataFrame, seperator: str):
         vals = df[["generation_index", "value"]].groupby(by="generation_index")["value"].apply(list)
@@ -70,16 +71,24 @@ class Condenser:
         if len(vals) < self.gen_amount:
             raise Exception("Not fully populated df")
 
-        vm = [0] * self.gen_amount
         for i in range(self.gen_amount):
             v = vals.iloc[i]
-            vm[i] = sum(v) / len(v)
-            self.fitness_data[seperator][i].extend(v)
-        self.fitness_averages[seperator].append(sum(vm) / len(vm))
+            mean = sum(v) / len(v)
+            self.fitness_data[seperator][i].append(mean)
+            self.fitness_max[seperator][i].append(max(v))
+            self.fitness_std[seperator][i].append()
+
+    def _populate_genotypes(self, df: pd.DataFrame, seperator:str):
+        vals = (df[["generation_index", "serialized_multineat_genome"]].groupby(by="generation_index")[
+                    "serialized_multineat_genome"].apply(list))
+        if len(vals) < self.gen_amount:
+            raise Exception("Not fully populated df")
+        for i in range(self.gen_amount):
+            self.genotype_data[seperator][i].extend(vals.iloc[i])
 
     def _populate_mmeasure(self, df:pd.DataFrame, seperator: str):
         genomes = df["serialized_multineat_genome"].loc[df["generation_index"] == df["generation_index"].max()].tolist()
-
+        #genomes = self.genotype_data[seperator][-1]
         for genome in genomes:
             body = develop_v1(pf.deserialize(genome))
             try:
