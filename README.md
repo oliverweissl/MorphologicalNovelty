@@ -4,8 +4,12 @@
 - Install Python 3.10
 - Install Revolve2 -> https://ci-group.github.io/revolve2/installation/index.html
 - Install Julia 1.8
-- pip install julia
-- _julia_: import Pkg \\\\ Pkg.add("PyCall") \\\\ Pkg.add("Shuffle")
+- in _python_ terminal:
+  - pip install julia
+- in _julia_ terminal: 
+  - import Pkg
+  - Pkg.add("PyCall")
+  -  Pkg.add("Shuffle")
 
 ## Run Simulations:
 For one specific simulation:
