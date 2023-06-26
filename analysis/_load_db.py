@@ -53,6 +53,8 @@ def load_db_fitness(database: str, db_id: DbId = DbId("optmodular")) -> pd.DataF
             DbEAOptimizer,
             DbEAOptimizerGeneration,
             DbEAOptimizerIndividual,
+            DbGenotype,
+            GenotypeDB,
             FloatDB
 
         ).filter(

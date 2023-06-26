@@ -39,7 +39,7 @@ class PhenotypeFramework:
         bodies = [develop_v1(genotype) for genotype in genotypes]  # db only returns Genotypes, can be swithced to str using cls.deserialize()
 
         # TODO: check whats better + test if works
-        coords = CoordinateOperations.coords_from_bodies(bodies=bodies, cob_heuristics=False)
+        coords = CoordinateOperations.coords_from_bodies(bodies=bodies, cob_heuristics=True)
 
         hists = [None] * amt_instances
         i = 0

@@ -12,8 +12,7 @@ class CoordinateOperations:
         coords = [cls._body_to_sorted_coordinates(body) for body in bodies]
         if cob_heuristics:
             return [cls._coordinates_pca_heuristic(coord) for coord in coords]
-        else:
-            return [cls._coordinates_pca_change_basis(coord) for coord in coords]
+        return [cls._coordinates_pca_change_basis(coord) for coord in coords]
 
     @classmethod
     def _body_to_sorted_coordinates(cls, body: Body) -> ndarray:
