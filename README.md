@@ -1,4 +1,6 @@
 # Thesis
+## - THIS IS DEPRECATED -> If you want to use Morphological Novelty yourself look at revolve2/ci-group https://github.com/ci-group/revolve2
+
  
 ## Prepare for Simulations:
 - Install Python 3.10
